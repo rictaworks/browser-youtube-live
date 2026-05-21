@@ -1,0 +1,86 @@
+# 環境変数・シークレット
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# Claude Code
+.claude/
+claude-settings/
+agents/
+
+# 開発環境情報（機密含む可能性）
+ENV/
+
+# ゴミ箱
+DELETE/
+
+# 管理ドキュメント（git管理外）
+CLIENT/
+TASKS/
+test/
+WORK/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn/cache
+.pnp.*
+dist/
+build/
+.next/
+.nuxt/
+.cache/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Ruby / Rails
+.bundle/
+vendor/bundle/
+log/
+tmp/
+*.sqlite3
+*.sqlite3-journal
+coverage/
+public/assets/
+public/packs/
+public/packs-test/
+storage/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# ログ
+*.log
+logs/
+
+# テスト成果物
+.nyc_output/
+playwright-report/
+test-results/
