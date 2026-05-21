@@ -5,7 +5,7 @@ const config: Config = {
   testEnvironment: 'node',
   roots: [
     '<rootDir>/src',
-    '/workspaces/browser-youtube-live/test',
+    '<rootDir>/../../test',
   ],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
