@@ -23,7 +23,6 @@ DELETE/
 # 管理ドキュメント（git管理外）
 CLIENT/
 TASKS/
-test/
 WORK/
 
 # Node.js
