@@ -5,9 +5,10 @@ API_ROOT = File.expand_path('../../src/api', __dir__)
 
 class DbSchemaTest < Minitest::Test
   TEST_ENV = {
-    'RAILS_ENV'                  => 'test',
-    'STREAM_KEY_ENCRYPTION_KEY'  => 'test_encryption_key_32chars_pad!',
-    'STREAM_KEY_DERIVATION_SALT' => 'test_derivation_salt_value_here!'
+    'RAILS_ENV'                      => 'test',
+    'AR_ENCRYPTION_PRIMARY_KEY'      => 'test_primary_key_32chars_padded!',
+    'AR_ENCRYPTION_DETERMINISTIC_KEY' => 'test_deterministic_32chars_pads!',
+    'AR_ENCRYPTION_KEY_DERIVATION_SALT' => 'test_derivation_salt_value_here!'
   }
 
   def rails(cmd)
@@ -170,7 +171,9 @@ class DbSchemaTest < Minitest::Test
 
   def test_encryption_key_uses_env_fetch
     content = File.read(File.join(API_ROOT, 'config/initializers/active_record_encryption.rb'))
-    assert content.include?('STREAM_KEY_ENCRYPTION_KEY'), "暗号化設定に STREAM_KEY_ENCRYPTION_KEY がない"
+    assert content.include?('AR_ENCRYPTION_PRIMARY_KEY'), "暗号化設定に AR_ENCRYPTION_PRIMARY_KEY がない"
+    assert content.include?('AR_ENCRYPTION_DETERMINISTIC_KEY'), "暗号化設定に AR_ENCRYPTION_DETERMINISTIC_KEY がない"
+    assert content.include?('AR_ENCRYPTION_KEY_DERIVATION_SALT'), "暗号化設定に AR_ENCRYPTION_KEY_DERIVATION_SALT がない"
   end
 
   def test_encryption_key_no_hardcode
@@ -181,8 +184,9 @@ class DbSchemaTest < Minitest::Test
 
   def test_env_example_has_encryption_keys
     content = File.read(File.join(API_ROOT, '.env.example'))
-    assert content.include?('STREAM_KEY_ENCRYPTION_KEY'), ".env.example に STREAM_KEY_ENCRYPTION_KEY がない"
-    assert content.include?('STREAM_KEY_DERIVATION_SALT'), ".env.example に STREAM_KEY_DERIVATION_SALT がない"
+    assert content.include?('AR_ENCRYPTION_PRIMARY_KEY'), ".env.example に AR_ENCRYPTION_PRIMARY_KEY がない"
+    assert content.include?('AR_ENCRYPTION_DETERMINISTIC_KEY'), ".env.example に AR_ENCRYPTION_DETERMINISTIC_KEY がない"
+    assert content.include?('AR_ENCRYPTION_KEY_DERIVATION_SALT'), ".env.example に AR_ENCRYPTION_KEY_DERIVATION_SALT がない"
   end
 
   # ---- seeds 内容確認 ----
@@ -208,9 +212,9 @@ class DbSchemaTest < Minitest::Test
 
   def test_schema_has_all_tables
     rails('db:migrate')
-    schema = File.read(File.join(API_ROOT, 'db/schema.rb'))
+    structure = File.read(File.join(API_ROOT, 'db/structure.sql'))
     %w[users stream_sessions stream_stats quality_presets].each do |table|
-      assert schema.include?(table), "schema.rb に #{table} テーブルがない"
+      assert structure.include?(table), "structure.sql に #{table} テーブルがない"
     end
   end
 
