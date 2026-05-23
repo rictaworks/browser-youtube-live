@@ -1,0 +1,17 @@
+# ビルド成果物
+bridge
+*.exe
+*.test
+*.out
+
+# 環境変数
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
