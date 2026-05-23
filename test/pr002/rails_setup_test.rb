@@ -114,6 +114,30 @@ class RailsSetupTest < Minitest::Test
     assert has_pg, "production DB が postgresql / DATABASE_URL でない"
   end
 
+  # ── セキュリティ設定確認 ──────────────────────────────────
+
+  def test_gitignore_excludes_master_key
+    gitignore_path = File.join(API_ROOT, '.gitignore')
+    assert File.exist?(gitignore_path), "src/api/.gitignore が存在しない"
+    content = File.read(gitignore_path)
+    assert content.include?('master.key'), ".gitignore に master.key 除外がない"
+  end
+
+  def test_cors_no_localhost_fallback_in_production
+    cors_path = File.join(API_ROOT, 'config/initializers/cors.rb')
+    content = File.read(cors_path)
+    assert content.include?('production?'), "本番環境判定でフォールバックを禁止していない"
+    assert content.match?(/raise|fetch\(['"]FRONTEND_ORIGIN['"]\)\s*$/),
+           "本番で FRONTEND_ORIGIN 未設定時にエラーを発生させていない"
+  end
+
+  def test_production_requires_master_key
+    prod_path = File.join(API_ROOT, 'config/environments/production.rb')
+    content = File.read(prod_path)
+    assert content.match?(/^\s*config\.require_master_key\s*=\s*true/),
+           "本番で require_master_key が有効化されていない"
+  end
+
   # ── ポート設定確認 ────────────────────────────────────────
 
   def test_puma_config_port_4000
