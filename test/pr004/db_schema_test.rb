@@ -67,31 +67,16 @@ class DbSchemaTest < Minitest::Test
     assert content.match?(/text.*stream_key|stream_key.*text/), "stream_sessions の stream_key が text 型でない"
   end
 
-  def test_stream_sessions_has_status_column
-    content = File.read(migration_file('create_stream_sessions'))
-    assert content.include?('status'), "stream_sessions に status カラムがない"
-  end
-
-  def test_stream_sessions_has_quality_column
-    content = File.read(migration_file('create_stream_sessions'))
-    assert content.include?('quality'), "stream_sessions に quality カラムがない"
-  end
-
   def test_stream_sessions_has_required_columns
     content = File.read(migration_file('create_stream_sessions'))
-    %w[broadcast_id rtmp_url started_at ended_at duration_sec max_viewers error_message].each do |col|
+    %w[status quality broadcast_id rtmp_url started_at ended_at duration_sec max_viewers error_message].each do |col|
       assert content.include?(col), "stream_sessions に #{col} カラムがない"
     end
   end
 
-  def test_stream_stats_has_session_foreign_key
-    content = File.read(migration_file('create_stream_stats'))
-    assert content.include?('stream_session'), "stream_stats に stream_session 外部キーがない"
-  end
-
   def test_stream_stats_has_required_columns
     content = File.read(migration_file('create_stream_stats'))
-    %w[recorded_at bitrate_kbps fps dropped_frames viewer_count buffer_size_kb].each do |col|
+    %w[stream_session recorded_at bitrate_kbps fps dropped_frames viewer_count buffer_size_kb].each do |col|
       assert content.include?(col), "stream_stats に #{col} カラムがない"
     end
   end
