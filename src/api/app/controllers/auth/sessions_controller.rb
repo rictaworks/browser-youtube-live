@@ -1,7 +1,5 @@
 module Auth
   class SessionsController < ApplicationController
-    COOKIE_NAME = 'jwt_token'
-
     before_action :authenticate!, only: [:me]
 
     def me
@@ -13,14 +11,14 @@ module Auth
     end
 
     def destroy
-      cookies.delete(COOKIE_NAME)
+      cookies.delete(JWT_COOKIE_NAME)
       head :no_content
     end
 
     private
 
     def authenticate!
-      token = cookies[COOKIE_NAME]
+      token = cookies[JWT_COOKIE_NAME]
 
       unless token
         render json: { error: '認証が必要です' }, status: :unauthorized

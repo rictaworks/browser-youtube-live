@@ -229,4 +229,49 @@ class OauthTest < Minitest::Test
     refute content.match?(/secret\s*[=:]\s*['"][a-zA-Z0-9+\/=]{20,}['"]/),
            "JwtService に JWT シークレットがハードコードされている"
   end
+
+  # ---- コードレビュー指摘対応 ----
+
+  def test_cookie_name_defined_in_application_controller
+    content = File.read(File.join(API_ROOT, 'app/controllers/application_controller.rb'))
+    assert content.include?('JWT_COOKIE_NAME'), "COOKIE_NAME が ApplicationController に定義されていない（重複定義排除）"
+  end
+
+  def test_omniauth_callbacks_controller_does_not_duplicate_cookie_name
+    content = File.read(File.join(API_ROOT, 'app/controllers/auth/omniauth_callbacks_controller.rb'))
+    refute content.include?("COOKIE_NAME = 'jwt_token'"),
+           "OmniauthCallbacksController に COOKIE_NAME がハードコードされている（ApplicationController の定数を使うこと）"
+  end
+
+  def test_sessions_controller_does_not_duplicate_cookie_name
+    content = File.read(File.join(API_ROOT, 'app/controllers/auth/sessions_controller.rb'))
+    refute content.include?("COOKIE_NAME = 'jwt_token'"),
+           "SessionsController に COOKIE_NAME がハードコードされている（ApplicationController の定数を使うこと）"
+  end
+
+  def test_cors_allows_credentials
+    content = File.read(File.join(API_ROOT, 'config/initializers/cors.rb'))
+    assert content.include?('credentials: true'), "CORS が credentials: true を設定していない（クロスオリジン Cookie 送信に必須）"
+  end
+
+  def test_cookie_same_site_none_for_cross_origin
+    content = File.read(File.join(API_ROOT, 'app/controllers/auth/omniauth_callbacks_controller.rb'))
+    assert content.include?('same_site: :none'), "Cookie の SameSite が :none でない（クロスオリジン fetch に必須）"
+  end
+
+  def test_youtube_refresh_token_migration_exists
+    assert Dir.glob(File.join(API_ROOT, 'db/migrate', '*_add_youtube_refresh_token_to_users.rb')).any?,
+           "youtube_refresh_token カラム追加マイグレーションが存在しない"
+  end
+
+  def test_user_model_encrypts_refresh_token
+    content = File.read(File.join(API_ROOT, 'app/models/user.rb'))
+    assert content.include?('youtube_refresh_token'), "User モデルが youtube_refresh_token を暗号化していない"
+  end
+
+  def test_use_current_user_no_unsafe_type_cast
+    content = File.read(File.join(FRONTEND_ROOT, 'src/hooks/useCurrentUser.ts'))
+    refute content.include?('as unknown as CurrentUser'),
+           "useCurrentUser に unsafe な型キャスト（null as unknown as CurrentUser）が残っている"
+  end
 end

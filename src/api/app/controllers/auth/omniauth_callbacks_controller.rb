@@ -2,9 +2,6 @@ module Auth
   class OmniauthCallbacksController < ApplicationController
     skip_before_action :verify_authenticity_token, raise: false
 
-    COOKIE_NAME = 'jwt_token'
-    COOKIE_TTL  = 24 * 60 * 60
-
     def google_oauth2
       auth = request.env['omniauth.auth']
 
@@ -16,12 +13,12 @@ module Auth
       user  = User.from_google(auth)
       token = JwtService.encode(user_id: user.id)
 
-      cookies[COOKIE_NAME] = {
-        value:    token,
-        httponly: true,
-        secure:   Rails.env.production?,
-        same_site: :lax,
-        expires:  COOKIE_TTL.seconds.from_now
+      cookies[JWT_COOKIE_NAME] = {
+        value:     token,
+        httponly:  true,
+        secure:    Rails.env.production?,
+        same_site: :none,
+        expires:   JWT_COOKIE_TTL.seconds.from_now
       }
 
       redirect_to "#{frontend_origin}/", allow_other_host: true
