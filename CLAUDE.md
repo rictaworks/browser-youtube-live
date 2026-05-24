@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Claude Safety Rules
 
 ## 削除系コマンドの禁止（重要）
@@ -22,6 +26,37 @@
 
 # プロジェクト開発規約
 
+## 技術スタック
+
+| モジュール | 言語・フレームワーク | 起動ポート |
+|---|---|---|
+| `src/frontend/` | TypeScript + Next.js 14 (App Router) | 3000 |
+| `src/api/` | Ruby 3.4.7 + Rails 7.2 (API モード) | **4000** |
+| `src/bridge/` | Go + Gin (RTMP ブリッジ) | **8080** |
+
+Rails は標準の 3000 ではなく **4000** 番で起動する。Go ブリッジは **8080** 番。
+
+## モジュール別コマンド
+
+```bash
+# フロントエンド（src/frontend/ 内で実行）
+npm run dev           # 開発サーバー起動
+npm run lint          # ESLint
+npm run type-check    # TypeScript 型チェック
+npm test              # Jest テスト
+
+# API（src/api/ 内で実行）
+bundle exec rails server -p 4000   # 開発サーバー起動
+bundle exec rails db:prepare       # DB 準備（初回・マイグレーション追加後）
+bundle exec rspec                  # RSpec テスト
+bin/brakeman --no-pager            # セキュリティスキャン
+bin/rubocop -f github              # Linting
+
+# Go ブリッジ（src/bridge/ 内で実行）
+go build && ./bridge               # ビルド＆起動
+go mod tidy                        # 依存関係整理
+```
+
 ## ブランチ戦略
 
 - **mainブランチでの作業禁止**。src/* 以外のファイル（設定ファイル等）のみ main への直接 push を許可する。
@@ -42,8 +77,8 @@
 ## テストフレームワーク
 
 - フロントエンド: Jest / Playwright
-- バックエンド (Rails): RSpec
-- テストは `test/pr***/` に配置し、開発サーバーを対象とする
+- バックエンド (Rails): RSpec（ユニットテストは `src/api/spec/` に配置）
+- PR 受け入れテストは `test/pr***/` に配置し、開発サーバー（localhost:3000 / 4000）を対象とする
 - ハードコード検出テストを必ず書くこと
 
 ## コーディング規約
@@ -55,6 +90,14 @@
 - フォールバック禁止 — 例外処理をしっかり書くこと
 - デバッグトレースできるようにコードを書くこと（ログ出力、エラーコンテキストの付与）
 
+### TypeScript / Prettier（`src/frontend/`）
+
+`semi: true`, `singleQuote: true`, `trailingComma: "es5"`, `printWidth: 100`, `tabWidth: 2`
+
+### Ruby（`src/api/`）
+
+`rubocop-rails-omakase` スタイルに準拠。
+
 ## アイコン・UI
 
 - デフォルトアイコンは **Font Awesome** を使用すること
@@ -62,9 +105,10 @@
 
 ## 環境変数
 
-- 環境変数は `.env` を参照すること
+- ルートの `.env` で 3 モジュール共通管理。各モジュールでは `.env` を参照すること。
 - 環境の判定を必ず実装して分岐できるようにすること
 - 開発環境ではテストを容易にするため認証済みに分岐すること
+- `src/api/config/master.key` は Rails credentials の復号化に必須。本番環境でも設定が必要。
 
 ## セキュリティ
 
@@ -72,7 +116,7 @@
 - OWASP Top 10 に準拠すること（claude-settings/OWASP10.md 参照）
 - QC10 チェックリストを遵守すること（claude-settings/QC10.md 参照）
 - TM に記載されたテストを作成すること（claude-settings/TM.md 参照）
-- CC.md / CRAP.md / DC.md / QA.md を参照すること
+- CC.md / CRAP.md を参照すること
 
 ## 図解
 
@@ -91,6 +135,8 @@
 | `ENV/PRODUCTION.md` | 本番環境情報 |
 | `SPEC/` | 仕様書・リバースエンジニアリング成果物 |
 | `DELETE/` | ゴミ箱（削除予定ファイル） |
+| `agents/` | サブエージェント定義（director, tester, deployer 等 9 ファイル） |
+| `.claude/` | Claude Code 権限設定（settings.local.json） |
 
 ---
 
