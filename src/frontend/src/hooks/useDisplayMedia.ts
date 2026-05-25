@@ -1,37 +1,37 @@
 import { useState, useCallback } from 'react';
-import { captureUserMedia, CaptureConfig } from '@/lib/captureUserMedia';
+import { captureDisplayMedia } from '@/lib/captureDisplayMedia';
 import { stopMediaTracks } from '@/lib/mediaUtils';
 
-export type UserMediaState =
+export type DisplayMediaState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'capturing'; stream: MediaStream; recorder: MediaRecorder }
   | { status: 'error'; error: Error };
 
-export async function startCapture(config: CaptureConfig): Promise<UserMediaState> {
+export async function startScreenCapture(): Promise<DisplayMediaState> {
   try {
-    const { stream, recorder } = await captureUserMedia(config);
+    const { stream, recorder } = await captureDisplayMedia();
     return { status: 'capturing', stream, recorder };
   } catch (err) {
     return { status: 'error', error: err instanceof Error ? err : new Error(String(err)) };
   }
 }
 
-export function stopCapture(state: UserMediaState): UserMediaState {
+export function stopScreenCapture(state: DisplayMediaState): DisplayMediaState {
   return stopMediaTracks(state);
 }
 
-export function useUserMedia() {
-  const [state, setState] = useState<UserMediaState>({ status: 'idle' });
+export function useDisplayMedia() {
+  const [state, setState] = useState<DisplayMediaState>({ status: 'idle' });
 
-  const start = useCallback(async (config: CaptureConfig) => {
+  const start = useCallback(async () => {
     setState({ status: 'loading' });
-    const next = await startCapture(config);
+    const next = await startScreenCapture();
     setState(next);
   }, []);
 
   const stop = useCallback(() => {
-    setState((prev) => stopCapture(prev));
+    setState((prev) => stopScreenCapture(prev));
   }, []);
 
   return { state, start, stop };
