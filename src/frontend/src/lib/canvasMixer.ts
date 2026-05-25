@@ -58,7 +58,7 @@ function createVideoElement(stream: MediaStream): HTMLVideoElement {
   const video = document.createElement('video');
   video.srcObject = stream;
   video.muted = true;
-  video.play();
+  video.play().catch(() => {});
   return video;
 }
 

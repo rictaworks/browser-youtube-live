@@ -110,7 +110,7 @@ describe('[PR008] startCanvasMix Canvas API 統合', () => {
   };
   const mockCreateElement = jest.fn((tag: string) => {
     if (tag === 'canvas') return mockCanvas;
-    return { srcObject: null, muted: false, play: jest.fn() };
+    return { srcObject: null, muted: false, play: jest.fn().mockResolvedValue(undefined) };
   });
 
   const mockScreenStream = {} as MediaStream;
