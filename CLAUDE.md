@@ -54,6 +54,7 @@ bin/rubocop -f github              # Linting
 
 # Go ブリッジ（src/bridge/ 内で実行）
 go build && ./bridge               # ビルド＆起動
+go test ./...                      # テスト実行
 go mod tidy                        # 依存関係整理
 ```
 
@@ -73,12 +74,16 @@ go mod tidy                        # 依存関係整理
 4. **green test** - テストが通ることを確認してからリファクタ
 
 フロントエンドの確認は `curl`、`wget --mirror`、または Playwright を使用すること。
+Playwright 初回セットアップ: `cd src/frontend && npx playwright install --with-deps`
 
 ## テストフレームワーク
 
-- フロントエンド: Jest / Playwright
-- バックエンド (Rails): RSpec（ユニットテストは `src/api/spec/` に配置）
-- PR 受け入れテストは `test/pr***/` に配置し、開発サーバー（localhost:3000 / 4000）を対象とする
+- フロントエンド: Jest（`npm test`）/ Playwright（`npx playwright test`、初回は `npx playwright install --with-deps`）
+- バックエンド (Rails): RSpec（`bundle exec rspec`、ユニットテストは `src/api/spec/` に配置）
+- Go Bridge: `go test ./...`
+- PR 受け入れテストは `test/pr{番号}/` に配置し、開発サーバー（localhost:3000 / 4000）を対象とする
+  - TypeScript テスト: `cd src/frontend && npx ts-jest test/pr{番号}/foo.test.ts`
+  - Ruby テスト: `ruby test/pr{番号}/foo_test.rb`
 - ハードコード検出テストを必ず書くこと
 
 ## コーディング規約
@@ -93,6 +98,8 @@ go mod tidy                        # 依存関係整理
 ### TypeScript / Prettier（`src/frontend/`）
 
 `semi: true`, `singleQuote: true`, `trailingComma: "es5"`, `printWidth: 100`, `tabWidth: 2`
+
+パスエイリアス: `@/*` → `./src/*`（例: `import Foo from '@/components/Foo'`）
 
 ### Ruby（`src/api/`）
 
@@ -109,6 +116,19 @@ go mod tidy                        # 依存関係整理
 - 環境の判定を必ず実装して分岐できるようにすること
 - 開発環境ではテストを容易にするため認証済みに分岐すること
 - `src/api/config/master.key` は Rails credentials の復号化に必須。本番環境でも設定が必要。
+
+### 必須キー（未設定だと起動しない）
+
+| モジュール | キー | 備考 |
+|---|---|---|
+| Frontend | `NEXT_PUBLIC_API_URL` | Rails API の URL（例: `http://localhost:4000`） |
+| Frontend | `NEXT_PUBLIC_WS_URL` | Go Bridge の WebSocket URL（例: `ws://localhost:8080`） |
+| Rails | `SECRET_KEY_BASE` | Rails 起動に必須 |
+| Rails | `DEVISE_JWT_SECRET_KEY` | JWT 署名キー |
+| Rails | `STREAM_KEY_ENCRYPTION_KEY` | AES-256 で StreamKey を暗号化 |
+| Rails | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth2 |
+| Go Bridge | `FFMPEG_PATH` | ヘルスチェックで検証（例: `/usr/bin/ffmpeg`） |
+| Go Bridge | `FRONTEND_ORIGIN` | CORS 許可オリジン（例: `http://localhost:3000`） |
 
 ## セキュリティ
 
@@ -140,18 +160,9 @@ go mod tidy                        # 依存関係整理
 
 ---
 
-## Sub Agents (/agents)
+## Sub Agents
 
-### pr-checker
-- 全 PR をレビューする（内容のレビューではなく日本語化・ユーザーテスト記載）
-- 全 PR のタイトル・本文を日本語にすること
-- 非エンジニア向けのユーザーテスト手順を PR 本文に丁寧に書くこと
-
-### tester
-- 全 PR を対象として、PR に書かれたユーザーテスト手順の実行スクリプトを作成すること
-- TM.md に記載されたテストを作成すること（Jest, RSpec 等）
-- テストは `test/pr***/` に配置すること
-- テストの対象は開発サーバーとすること
+9 つのサブエージェント定義が `agents/` に配置されている。詳細は @agents/ を参照。
 
 ---
 

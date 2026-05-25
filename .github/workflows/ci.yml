@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+
+jobs:
+  frontend:
+    name: Frontend (TypeScript + Jest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: src/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run type-check
+      - run: npm test -- --passWithNoTests
+
+  rails:
+    name: Rails API (RSpec + Rubocop + Brakeman)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/api
+    env:
+      RAILS_ENV: test
+      SECRET_KEY_BASE: dummy_secret_key_base_for_ci_only
+      DEVISE_JWT_SECRET_KEY: dummy_jwt_secret_key_for_ci_only
+      STREAM_KEY_ENCRYPTION_KEY: dummy_stream_key_encryption_key_32b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4.7'
+          bundler-cache: true
+          working-directory: src/api
+      - run: bundle exec rails db:prepare
+      - run: bundle exec rspec --format progress
+      - run: bin/rubocop -f github
+      - run: bin/brakeman --no-pager
+
+  bridge:
+    name: Go Bridge (Build + Test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/bridge
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache-dependency-path: src/bridge/go.sum
+      - run: go build ./...
+      - run: go test ./...
