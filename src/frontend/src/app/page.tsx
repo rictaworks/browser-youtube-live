@@ -3,19 +3,22 @@
 import LoginButton from '@/components/LoginButton';
 import CameraPreview from '@/components/CameraPreview';
 import ScreenPreview from '@/components/ScreenPreview';
+import MediaPreview from '@/components/MediaPreview';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUserMedia } from '@/hooks/useUserMedia';
 import { useDisplayMedia } from '@/hooks/useDisplayMedia';
+import { useCanvasMixer } from '@/hooks/useCanvasMixer';
 import { config } from '@/lib/env';
 import type { Quality } from '@/lib/captureUserMedia';
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faVideo, faStop, faDesktop } from '@fortawesome/free-solid-svg-icons';
+import { faVideo, faStop, faDesktop, faLayerGroup } from '@fortawesome/free-solid-svg-icons';
 
 export default function Home() {
   const { user, isLoading } = useCurrentUser();
   const { state: cameraState, start: startCamera, stop: stopCamera } = useUserMedia();
   const { state: screenState, start: startScreen, stop: stopScreen } = useDisplayMedia();
+  const { state: mixerState, start: startMix, stop: stopMix } = useCanvasMixer();
   const [quality, setQuality] = useState<Quality>('720p');
 
   const handleSignOut = async () => {
@@ -26,8 +29,15 @@ export default function Home() {
     window.location.reload();
   };
 
+  const handleStartMix = () => {
+    if (cameraState.status !== 'capturing' || screenState.status !== 'capturing') return;
+    startMix(screenState.stream, cameraState.stream, quality);
+  };
+
   const cameraStream = cameraState.status === 'capturing' ? cameraState.stream : null;
   const screenStream = screenState.status === 'capturing' ? screenState.stream : null;
+  const mixedStream = mixerState.status === 'mixing' ? mixerState.mixedStream : null;
+  const canMix = cameraState.status === 'capturing' && screenState.status === 'capturing';
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
@@ -41,16 +51,28 @@ export default function Home() {
             ようこそ、<span className="font-semibold">{user.name}</span> さん
           </p>
 
-          <div className="grid grid-cols-2 gap-4 w-full">
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-gray-600">カメラ</p>
-              <CameraPreview stream={cameraStream} />
+          {mixerState.status === 'mixing' ? (
+            <div className="w-full">
+              <p className="text-sm font-medium text-gray-600 mb-2">合成プレビュー（PiP）</p>
+              <MediaPreview
+                stream={mixedStream}
+                emptyIcon={faLayerGroup}
+                emptyText="合成中..."
+                label="PiP合成プレビュー"
+              />
             </div>
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-gray-600">画面共有</p>
-              <ScreenPreview stream={screenStream} />
+          ) : (
+            <div className="grid grid-cols-2 gap-4 w-full">
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium text-gray-600">カメラ</p>
+                <CameraPreview stream={cameraStream} />
+              </div>
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium text-gray-600">画面共有</p>
+                <ScreenPreview stream={screenStream} />
+              </div>
             </div>
-          </div>
+          )}
 
           {cameraState.status === 'error' && (
             <p className="text-red-500 text-sm">
@@ -119,6 +141,26 @@ export default function Home() {
               >
                 <FontAwesomeIcon icon={faDesktop} />
                 {screenState.status === 'loading' ? '接続中...' : '画面共有'}
+              </button>
+            )}
+
+            {mixerState.status === 'mixing' ? (
+              <button
+                onClick={stopMix}
+                className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors"
+              >
+                <FontAwesomeIcon icon={faStop} />
+                合成停止
+              </button>
+            ) : (
+              <button
+                onClick={handleStartMix}
+                disabled={!canMix}
+                title={canMix ? 'PiP合成を開始' : 'カメラと画面共有を両方開始してください'}
+                className="flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 transition-colors disabled:opacity-40"
+              >
+                <FontAwesomeIcon icon={faLayerGroup} />
+                PiP合成
               </button>
             )}
           </div>
