@@ -74,3 +74,23 @@ npm run dev
 - アイコンは Font Awesome を使用、絵文字禁止
 - セキュリティ: commit 前に security review 実施
 - 詳細は [CLAUDE.md](./CLAUDE.md) を参照
+
+---
+
+## 開発方針
+
+### AI 役割分担
+
+| フェーズ | 担当モデル |
+|---|---|
+| 設計・Issue 発行 | Claude Sonnet |
+| 実装 | Claude Sonnet |
+| コードレビュー | Claude Sonnet |
+| テスト作成・実行 | Claude Sonnet |
+| セキュリティレビュー | Claude Opus |
+
+### リリースフロー
+
+1. 各 Issue を上記役割分担で実装・レビュー・マージ
+2. **全 Issue 完了後**に人力コードレビューを実施
+3. **全 Issue 完了後**にユーザーテスト（実機確認）を実施
