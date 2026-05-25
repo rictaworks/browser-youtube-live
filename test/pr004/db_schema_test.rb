@@ -5,10 +5,13 @@ API_ROOT = File.expand_path('../../src/api', __dir__)
 
 class DbSchemaTest < Minitest::Test
   TEST_ENV = {
-    'RAILS_ENV'                      => 'test',
-    'AR_ENCRYPTION_PRIMARY_KEY'      => 'test_primary_key_32chars_padded!',
-    'AR_ENCRYPTION_DETERMINISTIC_KEY' => 'test_deterministic_32chars_pads!',
-    'AR_ENCRYPTION_KEY_DERIVATION_SALT' => 'test_derivation_salt_value_here!'
+    'RAILS_ENV'                         => 'test',
+    'AR_ENCRYPTION_PRIMARY_KEY'         => 'test_primary_key_32chars_padded!',
+    'AR_ENCRYPTION_DETERMINISTIC_KEY'   => 'test_deterministic_32chars_pads!',
+    'AR_ENCRYPTION_KEY_DERIVATION_SALT' => 'test_derivation_salt_value_here!',
+    'GOOGLE_CLIENT_ID'                  => 'test_google_client_id',
+    'GOOGLE_CLIENT_SECRET'              => 'test_google_client_secret',
+    'DEVISE_JWT_SECRET_KEY'             => 'test_jwt_secret_key_32chars_pads!'
   }
 
   def rails(cmd)
