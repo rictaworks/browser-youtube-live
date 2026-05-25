@@ -7,10 +7,7 @@ export type UserMediaState =
   | { status: 'capturing'; stream: MediaStream; recorder: MediaRecorder }
   | { status: 'error'; error: Error };
 
-export async function startCapture(
-  _state: UserMediaState,
-  config: CaptureConfig
-): Promise<UserMediaState> {
+export async function startCapture(config: CaptureConfig): Promise<UserMediaState> {
   try {
     const { stream, recorder } = await captureUserMedia(config);
     return { status: 'capturing', stream, recorder };
@@ -30,9 +27,9 @@ export function useUserMedia() {
 
   const start = useCallback(async (config: CaptureConfig) => {
     setState({ status: 'loading' });
-    const next = await startCapture(state, config);
+    const next = await startCapture(config);
     setState(next);
-  }, [state]);
+  }, []);
 
   const stop = useCallback(() => {
     setState((prev) => stopCapture(prev));

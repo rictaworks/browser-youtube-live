@@ -13,8 +13,10 @@ beforeEach(() => {
     configurable: true,
     writable: true,
   });
-  (global as { MediaRecorder: unknown }).MediaRecorder = mockMediaRecorder;
-  (global as { MediaRecorder: { isTypeSupported: jest.Mock } }).MediaRecorder.isTypeSupported = jest.fn(() => true);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (global as any).MediaRecorder = Object.assign(mockMediaRecorder, {
+    isTypeSupported: jest.fn(() => true),
+  });
 });
 
 describe('QUALITY_CONSTRAINTS', () => {

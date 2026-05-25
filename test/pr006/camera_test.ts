@@ -46,8 +46,10 @@ describe('[PR006] captureUserMedia エラーハンドリング', () => {
       configurable: true,
       writable: true,
     });
-    (global as any).MediaRecorder = mockMediaRecorder;
-    (global as any).MediaRecorder.isTypeSupported = jest.fn(() => true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (global as any).MediaRecorder = Object.assign(mockMediaRecorder, {
+      isTypeSupported: jest.fn(() => true),
+    });
   });
 
   test('PermissionDeniedError が正しい name で投げられる', async () => {

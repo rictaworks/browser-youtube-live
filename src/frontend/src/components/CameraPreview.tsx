@@ -12,8 +12,12 @@ export default function CameraPreview({ stream }: CameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (!videoRef.current) return;
-    videoRef.current.srcObject = stream;
+    const video = videoRef.current;
+    if (!video) return;
+    video.srcObject = stream;
+    return () => {
+      video.srcObject = null;
+    };
   }, [stream]);
 
   if (!stream) {

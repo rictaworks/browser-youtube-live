@@ -1,6 +1,7 @@
 import { captureUserMedia } from '@/lib/captureUserMedia';
 import { startCapture, stopCapture, UserMediaState } from '@/hooks/useUserMedia';
 
+
 jest.mock('@/lib/captureUserMedia');
 const mockCaptureUserMedia = captureUserMedia as jest.MockedFunction<typeof captureUserMedia>;
 
@@ -16,8 +17,7 @@ describe('startCapture', () => {
   test('idle 状態から capturing に遷移する', async () => {
     mockCaptureUserMedia.mockResolvedValue({ stream: mockStream, recorder: mockRecorder });
 
-    const state: UserMediaState = { status: 'idle' };
-    const result = await startCapture(state, { video: true, audio: true, quality: '720p' });
+    const result = await startCapture({ video: true, audio: true, quality: '720p' });
 
     expect(result.status).toBe('capturing');
   });
@@ -25,8 +25,7 @@ describe('startCapture', () => {
   test('capturing 状態のとき stream と recorder を持つ', async () => {
     mockCaptureUserMedia.mockResolvedValue({ stream: mockStream, recorder: mockRecorder });
 
-    const state: UserMediaState = { status: 'idle' };
-    const result = await startCapture(state, { video: true, audio: true, quality: '720p' });
+    const result = await startCapture({ video: true, audio: true, quality: '720p' });
 
     if (result.status === 'capturing') {
       expect(result.stream).toBe(mockStream);
@@ -38,8 +37,7 @@ describe('startCapture', () => {
     const err = Object.assign(new Error('PermissionDeniedError'), { name: 'PermissionDeniedError' });
     mockCaptureUserMedia.mockRejectedValue(err);
 
-    const state: UserMediaState = { status: 'idle' };
-    const result = await startCapture(state, { video: true, audio: true, quality: '720p' });
+    const result = await startCapture({ video: true, audio: true, quality: '720p' });
 
     expect(result.status).toBe('error');
     if (result.status === 'error') {
@@ -51,8 +49,7 @@ describe('startCapture', () => {
     const err = Object.assign(new Error('DeviceNotFoundError'), { name: 'DeviceNotFoundError' });
     mockCaptureUserMedia.mockRejectedValue(err);
 
-    const state: UserMediaState = { status: 'idle' };
-    const result = await startCapture(state, { video: true, audio: true, quality: '720p' });
+    const result = await startCapture({ video: true, audio: true, quality: '720p' });
 
     expect(result.status).toBe('error');
   });
