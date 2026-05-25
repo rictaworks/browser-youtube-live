@@ -3,7 +3,7 @@ export interface DisplayCaptureResult {
   recorder: MediaRecorder;
 }
 
-const MIME_TYPE = 'video/webm;codecs=vp8,opus';
+import { WEBM_MIME_TYPE } from '@/lib/mediaConstants';
 
 export async function captureDisplayMedia(): Promise<DisplayCaptureResult> {
   if (!navigator.mediaDevices?.getDisplayMedia) {
@@ -20,7 +20,7 @@ export async function captureDisplayMedia(): Promise<DisplayCaptureResult> {
     throw err;
   }
 
-  const recorder = new MediaRecorder(stream, { mimeType: MIME_TYPE });
+  const recorder = new MediaRecorder(stream, { mimeType: WEBM_MIME_TYPE });
 
   return { stream, recorder };
 }

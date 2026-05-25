@@ -17,7 +17,7 @@ export const QUALITY_CONSTRAINTS: Record<Quality, { width: number; height: numbe
   '480p':  { width: 854,  height: 480,  frameRate: 30 },
 };
 
-const MIME_TYPE = 'video/webm;codecs=vp8,opus';
+import { WEBM_MIME_TYPE } from '@/lib/mediaConstants';
 
 export async function captureUserMedia(config: CaptureConfig): Promise<CaptureResult> {
   if (!config.video) {
@@ -44,7 +44,7 @@ export async function captureUserMedia(config: CaptureConfig): Promise<CaptureRe
     throw err;
   }
 
-  const recorder = new MediaRecorder(stream, { mimeType: MIME_TYPE });
+  const recorder = new MediaRecorder(stream, { mimeType: WEBM_MIME_TYPE });
 
   return { stream, recorder };
 }

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { captureDisplayMedia } from '@/lib/captureDisplayMedia';
+import { stopMediaTracks } from '@/lib/mediaUtils';
 
 export type DisplayMediaState =
   | { status: 'idle' }
@@ -17,9 +18,7 @@ export async function startScreenCapture(): Promise<DisplayMediaState> {
 }
 
 export function stopScreenCapture(state: DisplayMediaState): DisplayMediaState {
-  if (state.status !== 'capturing') return { status: 'idle' };
-  state.stream.getTracks().forEach((track) => track.stop());
-  return { status: 'idle' };
+  return stopMediaTracks(state);
 }
 
 export function useDisplayMedia() {

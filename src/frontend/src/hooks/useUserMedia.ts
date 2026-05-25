@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { captureUserMedia, CaptureConfig } from '@/lib/captureUserMedia';
+import { stopMediaTracks } from '@/lib/mediaUtils';
 
 export type UserMediaState =
   | { status: 'idle' }
@@ -17,9 +18,7 @@ export async function startCapture(config: CaptureConfig): Promise<UserMediaStat
 }
 
 export function stopCapture(state: UserMediaState): UserMediaState {
-  if (state.status !== 'capturing') return { status: 'idle' };
-  state.stream.getTracks().forEach((track) => track.stop());
-  return { status: 'idle' };
+  return stopMediaTracks(state);
 }
 
 export function useUserMedia() {
