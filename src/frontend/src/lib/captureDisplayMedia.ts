@@ -1,9 +1,9 @@
+import { WEBM_MIME_TYPE } from '@/lib/mediaConstants';
+
 export interface DisplayCaptureResult {
   stream: MediaStream;
   recorder: MediaRecorder;
 }
-
-import { WEBM_MIME_TYPE } from '@/lib/mediaConstants';
 
 export async function captureDisplayMedia(): Promise<DisplayCaptureResult> {
   if (!navigator.mediaDevices?.getDisplayMedia) {
