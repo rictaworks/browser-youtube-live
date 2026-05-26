@@ -53,7 +53,5 @@ class CollectStreamStatsJob
     req = Net::HTTP::Post.new(uri, "Content-Type" => "application/json")
     req.body = data.to_json
     Net::HTTP.start(uri.host, uri.port, read_timeout: 2) { |http| http.request(req) }
-  rescue StandardError => e
-    Rails.logger.warn "[CollectStreamStatsJob] Bridge push failed: #{e.message}"
   end
 end

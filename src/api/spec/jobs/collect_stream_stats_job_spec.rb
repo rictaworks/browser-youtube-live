@@ -85,14 +85,16 @@ RSpec.describe CollectStreamStatsJob, type: :job do
 
     context "Bridge HTTP呼び出しが失敗しても" do
       before do
+        # push_to_bridge の rescue を外した実装で例外が perform まで伝播しキャッチされること
         allow(job).to receive(:push_to_bridge).and_raise(Errno::ECONNREFUSED)
       end
 
-      it "例外を発生させずstream_statは作成される" do
-        expect {
-          job.perform(session.id)
-        }.not_to raise_error
+      it "例外を発生させない" do
+        expect { job.perform(session.id) }.not_to raise_error
+      end
 
+      it "stream_stat は作成される" do
+        job.perform(session.id)
         expect(StreamStat.count).to eq(1)
       end
     end

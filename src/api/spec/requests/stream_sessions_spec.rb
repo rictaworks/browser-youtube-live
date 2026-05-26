@@ -242,6 +242,7 @@ RSpec.describe "GET /stream_sessions/:id/stats", type: :request do
       expect(json["bitrate_kbps"]).to eq(3000)
       expect(json["viewer_count"]).to eq(42)
       expect(json["fps"]).to eq("30.0")
+      expect(json["elapsed_seconds"]).to be_a(Integer)
     end
   end
 

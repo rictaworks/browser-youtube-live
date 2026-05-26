@@ -89,14 +89,17 @@ class StreamSessionsController < ApplicationController
   end
 
   def stats_json(stat)
+    started_at = stat.stream_session.started_at
+    elapsed = started_at ? (Time.current - started_at).to_i : 0
     {
-      id:             stat.id,
-      recorded_at:    stat.recorded_at,
-      bitrate_kbps:   stat.bitrate_kbps,
-      fps:            stat.fps,
-      dropped_frames: stat.dropped_frames,
-      viewer_count:   stat.viewer_count,
-      buffer_size_kb: stat.buffer_size_kb
+      id:              stat.id,
+      recorded_at:     stat.recorded_at,
+      bitrate_kbps:    stat.bitrate_kbps,
+      fps:             stat.fps,
+      dropped_frames:  stat.dropped_frames,
+      viewer_count:    stat.viewer_count,
+      buffer_size_kb:  stat.buffer_size_kb,
+      elapsed_seconds: elapsed
     }
   end
 end
