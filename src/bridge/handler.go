@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 
@@ -87,6 +89,21 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	defer proc.Stop()
 	defer h.store.Delete(sessionID)
 
+	writeCh := make(chan []byte, 32)
+	sess.SetWriteChan(writeCh)
+	defer func() {
+		sess.SetWriteChan(nil)
+		close(writeCh)
+	}()
+
+	go func() {
+		for data := range writeCh {
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				log.Printf("WebSocket stats write error (session %s): %v", sessionID, err)
+			}
+		}
+	}()
+
 	sess.SetStopFunc(func() {
 		conn.WriteMessage(
 			websocket.CloseMessage,
@@ -111,4 +128,26 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 			}
 		}
 	}
+}
+
+func (h *Handler) PushStats(c *gin.Context) {
+	id := c.Param("id")
+	sess, err := h.store.Get(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil || len(body) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
+		return
+	}
+	if !json.Valid(body) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body must be valid JSON"})
+		return
+	}
+
+	sess.TrySendStats(body)
+	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

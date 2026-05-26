@@ -67,6 +67,7 @@ func setupRouter(store *SessionStore, runner FFmpegRunner, allowedOrigin string)
 
 	r.POST("/bridge/sessions", h.RegisterSession)
 	r.DELETE("/bridge/sessions/:id", h.StopSession)
+	r.POST("/bridge/sessions/:id/stats", h.PushStats)
 	r.GET("/ws", h.HandleWebSocket)
 
 	return r

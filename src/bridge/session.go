@@ -9,10 +9,11 @@ var ErrSessionNotFound = errors.New("session not found")
 var ErrSessionExists = errors.New("session already exists")
 
 type Session struct {
-	ID      string
-	RTMPURL string
-	mu       sync.Mutex
-	stopFunc func()
+	ID        string
+	RTMPURL   string
+	mu        sync.Mutex
+	stopFunc  func()
+	writeChan chan []byte
 }
 
 func (s *Session) SetStopFunc(f func()) {
@@ -27,6 +28,27 @@ func (s *Session) Stop() {
 	s.mu.Unlock()
 	if f != nil {
 		f()
+	}
+}
+
+func (s *Session) SetWriteChan(ch chan []byte) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.writeChan = ch
+}
+
+func (s *Session) TrySendStats(data []byte) bool {
+	s.mu.Lock()
+	ch := s.writeChan
+	s.mu.Unlock()
+	if ch == nil {
+		return false
+	}
+	select {
+	case ch <- data:
+		return true
+	default:
+		return false
 	}
 }
 

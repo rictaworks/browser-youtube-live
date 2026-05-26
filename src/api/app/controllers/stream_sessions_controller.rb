@@ -1,6 +1,6 @@
 class StreamSessionsController < ApplicationController
   before_action :authenticate!
-  before_action :set_session, only: [:end]
+  before_action :set_session, only: [:end, :stats]
 
   def create
     youtube  = YoutubeService.new(@current_user)
@@ -23,8 +23,11 @@ class StreamSessionsController < ApplicationController
       stream_key:   stream.cdn.ingestion_info.stream_name,
       rtmp_url:     stream.cdn.ingestion_info.ingestion_address,
       status:       "created",
-      quality:      quality_name
+      quality:      quality_name,
+      started_at:   Time.current
     )
+
+    CollectStreamStatsJob.perform_in(CollectStreamStatsJob::INTERVAL_SECONDS, session_record.id)
 
     render json: session_json(session_record), status: :created
 
@@ -53,6 +56,15 @@ class StreamSessionsController < ApplicationController
            status: :unprocessable_entity
   end
 
+  def stats
+    stat = @stream_session.stream_stats.order(recorded_at: :desc).first
+    if stat.nil?
+      render json: { message: "統計データがまだありません" }, status: :no_content
+      return
+    end
+    render json: stats_json(stat)
+  end
+
   private
 
   def set_session
@@ -73,6 +85,18 @@ class StreamSessionsController < ApplicationController
       quality:      session.quality,
       ended_at:     session.ended_at,
       created_at:   session.created_at
+    }
+  end
+
+  def stats_json(stat)
+    {
+      id:             stat.id,
+      recorded_at:    stat.recorded_at,
+      bitrate_kbps:   stat.bitrate_kbps,
+      fps:            stat.fps,
+      dropped_frames: stat.dropped_frames,
+      viewer_count:   stat.viewer_count,
+      buffer_size_kb: stat.buffer_size_kb
     }
   end
 end
