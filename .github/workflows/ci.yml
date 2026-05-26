@@ -3,16 +3,9 @@ name: CI
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - 'src/**'
   push:
     branches:
       - main
-    paths:
-      - 'src/**'
-
-permissions:
-  contents: read
 
 jobs:
   frontend:
@@ -23,6 +16,8 @@ jobs:
         working-directory: src/frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -47,14 +42,18 @@ jobs:
       AR_ENCRYPTION_PRIMARY_KEY: dummy_ar_encryption_primary_key_for_ci
       AR_ENCRYPTION_DETERMINISTIC_KEY: dummy_ar_encryption_deterministic_key_for_ci
       AR_ENCRYPTION_KEY_DERIVATION_SALT: dummy_ar_encryption_key_derivation_salt_ci
+      GOOGLE_CLIENT_ID: dummy_google_client_id_for_ci
+      GOOGLE_CLIENT_SECRET: dummy_google_client_secret_for_ci
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4.7'
           bundler-cache: true
           working-directory: src/api
-      - run: bundle exec rails db:prepare
+      - run: bundle exec rails db:create db:schema:load
       - run: bundle exec rspec --format progress
       - run: bin/rubocop -f github
       - run: bin/brakeman --no-pager
@@ -67,6 +66,8 @@ jobs:
         working-directory: src/bridge
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'

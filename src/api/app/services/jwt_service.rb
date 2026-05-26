@@ -1,7 +1,7 @@
-require 'jwt'
+require "jwt"
 
 module JwtService
-  ALGORITHM = 'HS256'
+  ALGORITHM = "HS256"
   TTL       = 24 * 60 * 60
 
   def self.encode(payload)
