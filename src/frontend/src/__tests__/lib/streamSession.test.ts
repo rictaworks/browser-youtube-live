@@ -25,7 +25,7 @@ describe('createStreamSession', () => {
 
     expect(result).toEqual(mockResponse);
     expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/sessions'),
+      expect.stringContaining('/stream_sessions'),
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -59,8 +59,8 @@ describe('createStreamSession', () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
     await createStreamSession('720p').catch(() => {});
     const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
-    // env.ts の config を経由していることを確認（/sessions パスが含まれる）
-    expect(calledUrl).toMatch(/\/sessions$/);
+    // env.ts の config を経由していることを確認（/stream_sessions パスが含まれる）
+    expect(calledUrl).toMatch(/\/stream_sessions$/);
   });
 });
 

@@ -17,7 +17,7 @@ module Auth
         value:     token,
         httponly:  true,
         secure:    Rails.env.production?,
-        same_site: :none,
+        same_site: :lax,
         expires:   JWT_COOKIE_TTL.seconds.from_now
       }
 

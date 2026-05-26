@@ -19,7 +19,7 @@ export class StreamApiError extends Error {
 }
 
 export async function createStreamSession(quality: string): Promise<StreamSessionResponse> {
-  const res = await fetch(`${config.apiBaseUrl}/sessions`, {
+  const res = await fetch(`${config.apiBaseUrl}/stream_sessions`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

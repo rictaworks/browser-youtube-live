@@ -69,7 +69,13 @@ class YoutubeService
   end
 
   def handle_client_error(error)
-    raise QuotaExceededError, error.message if error.message.include?("quotaExceeded")
+    reason = begin
+      JSON.parse(error.body).dig("error", "errors", 0, "reason")
+    rescue StandardError
+      nil
+    end
+    quota = reason == "quotaExceeded" || error.message.include?("quotaExceeded")
+    raise QuotaExceededError, error.message if quota
     raise ChannelNotConfiguredError, error.message if error.status_code == 404
     raise error
   end

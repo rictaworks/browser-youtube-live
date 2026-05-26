@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "POST /sessions", type: :request do
+RSpec.describe "POST /stream_sessions", type: :request do
   include FactoryBot::Syntax::Methods
 
   let(:user) { create(:user) }
@@ -38,7 +38,7 @@ RSpec.describe "POST /sessions", type: :request do
 
   context "認証済みユーザー" do
     it "セッションを作成して201を返す" do
-      post "/sessions", params: { quality: "720p" }, headers: auth_headers
+      post "/stream_sessions", params: { quality: "720p" }, headers: auth_headers
 
       expect(response).to have_http_status(:created)
       json = JSON.parse(response.body)
@@ -50,12 +50,12 @@ RSpec.describe "POST /sessions", type: :request do
 
     it "DBにセッションが保存される" do
       expect {
-        post "/sessions", params: { quality: "720p" }, headers: auth_headers
+        post "/stream_sessions", params: { quality: "720p" }, headers: auth_headers
       }.to change(StreamSession, :count).by(1)
     end
 
     it "qualityを指定しない場合720pがデフォルトになる" do
-      post "/sessions", params: {}, headers: auth_headers
+      post "/stream_sessions", params: {}, headers: auth_headers
 
       json = JSON.parse(response.body)
       expect(json["quality"]).to eq("720p")
@@ -64,7 +64,7 @@ RSpec.describe "POST /sessions", type: :request do
 
   context "未認証" do
     it "401を返す" do
-      post "/sessions", params: { quality: "720p" }
+      post "/stream_sessions", params: { quality: "720p" }
       expect(response).to have_http_status(:unauthorized)
     end
   end
@@ -76,7 +76,7 @@ RSpec.describe "POST /sessions", type: :request do
     end
 
     it "422とエラーコードを返す" do
-      post "/sessions", params: { quality: "720p" }, headers: auth_headers
+      post "/stream_sessions", params: { quality: "720p" }, headers: auth_headers
 
       expect(response).to have_http_status(:unprocessable_entity)
       json = JSON.parse(response.body)
@@ -91,7 +91,7 @@ RSpec.describe "POST /sessions", type: :request do
     end
 
     it "422とエラーコードを返す" do
-      post "/sessions", params: { quality: "720p" }, headers: auth_headers
+      post "/stream_sessions", params: { quality: "720p" }, headers: auth_headers
 
       expect(response).to have_http_status(:unprocessable_entity)
       json = JSON.parse(response.body)
