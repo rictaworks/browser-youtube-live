@@ -2,6 +2,8 @@ class StreamSession < ApplicationRecord
   STATUSES  = %w[created starting live ended error].freeze
   QUALITIES = %w[360p 480p 720p 1080p].freeze
 
+  before_create { self.id ||= SecureRandom.uuid }
+
   belongs_to :user
   has_many :stream_stats, foreign_key: :stream_session_id, dependent: :destroy
 

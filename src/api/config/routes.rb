@@ -8,4 +8,6 @@ Rails.application.routes.draw do
     get    'me',      to: 'sessions#me'
     delete 'sign_out', to: 'sessions#destroy'
   end
+
+  resources :stream_sessions, only: [:create]
 end

@@ -10,17 +10,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		allowed := os.Getenv("FRONTEND_ORIGIN")
-		if allowed == "" {
-			log.Fatal("FRONTEND_ORIGIN が設定されていません")
-		}
-		return origin == allowed
-	},
-}
-
 func ffmpegPath() string {
 	path := os.Getenv("FFMPEG_PATH")
 	if path == "" {
@@ -37,10 +26,28 @@ func serverPort() string {
 	return ":" + port
 }
 
-func setupRouter() *gin.Engine {
+func frontendOrigin() string {
+	origin := os.Getenv("FRONTEND_ORIGIN")
+	if origin == "" {
+		log.Fatal("FRONTEND_ORIGIN が設定されていません")
+	}
+	return origin
+}
+
+func setupRouter(store *SessionStore, runner FFmpegRunner, allowedOrigin string) *gin.Engine {
 	r := gin.New()
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
+
+	h := &Handler{
+		store:  store,
+		runner: runner,
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(req *http.Request) bool {
+				return req.Header.Get("Origin") == allowedOrigin
+			},
+		},
+	}
 
 	r.GET("/health", func(c *gin.Context) {
 		ffmpeg := ffmpegPath()
@@ -58,23 +65,8 @@ func setupRouter() *gin.Engine {
 		})
 	})
 
-	r.GET("/ws", func(c *gin.Context) {
-		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			log.Printf("WebSocket upgrade error: %v", err)
-			return
-		}
-		defer conn.Close()
-		log.Println("WebSocket client connected")
-
-		for {
-			_, _, err := conn.ReadMessage()
-			if err != nil {
-				log.Printf("WebSocket read error: %v", err)
-				break
-			}
-		}
-	})
+	r.POST("/bridge/sessions", h.RegisterSession)
+	r.GET("/ws", h.HandleWebSocket)
 
 	return r
 }
@@ -84,11 +76,14 @@ func main() {
 		log.Println(".env ファイルが見つかりません。環境変数から読み込みます")
 	}
 
+	store := NewSessionStore()
+	runner := NewFFmpegRunner(ffmpegPath())
+	origin := frontendOrigin()
+
 	port := serverPort()
-	r := setupRouter()
+	r := setupRouter(store, runner, origin)
 
 	log.Printf("RTMPブリッジサーバー起動: %s", port)
-	log.Printf("FFmpeg: %s", ffmpegPath())
 
 	if err := r.Run(port); err != nil {
 		log.Fatalf("サーバー起動失敗: %v", err)

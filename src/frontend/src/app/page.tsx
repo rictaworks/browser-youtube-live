@@ -8,11 +8,18 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUserMedia } from '@/hooks/useUserMedia';
 import { useDisplayMedia } from '@/hooks/useDisplayMedia';
 import { useCanvasMixer } from '@/hooks/useCanvasMixer';
+import { startStream, stopStream, StreamSessionState, IDLE } from '@/hooks/useStreamSession';
 import { config } from '@/lib/env';
 import type { Quality } from '@/lib/captureUserMedia';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faVideo, faStop, faDesktop, faLayerGroup } from '@fortawesome/free-solid-svg-icons';
+import {
+  faVideo,
+  faStop,
+  faDesktop,
+  faLayerGroup,
+  faBroadcastTower,
+} from '@fortawesome/free-solid-svg-icons';
 
 export default function Home() {
   const { user, isLoading } = useCurrentUser();
@@ -20,6 +27,9 @@ export default function Home() {
   const { state: screenState, start: startScreen, stop: stopScreen } = useDisplayMedia();
   const { state: mixerState, start: startMix, stop: stopMix } = useCanvasMixer();
   const [quality, setQuality] = useState<Quality>('720p');
+  const [streamState, setStreamState] = useState<StreamSessionState>(IDLE);
+  const wsRef = useRef<WebSocket | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
 
   const handleSignOut = async () => {
     await fetch(`${config.apiBaseUrl}/auth/sign_out`, {
@@ -34,10 +44,31 @@ export default function Home() {
     startMix(screenState.stream, cameraState.stream, quality);
   };
 
+  const handleStartStream = async () => {
+    const stream = mixerState.status === 'mixing' ? mixerState.mixedStream : null;
+    if (!stream) return;
+
+    const next = await startStream(stream, quality, setStreamState);
+    if (next.phase === 'STREAMING') {
+      wsRef.current = next.ws;
+      recorderRef.current = next.recorder;
+    }
+  };
+
+  const handleStopStream = () => {
+    const next = stopStream(wsRef.current, recorderRef.current);
+    wsRef.current = null;
+    recorderRef.current = null;
+    setStreamState(next);
+  };
+
   const cameraStream = cameraState.status === 'capturing' ? cameraState.stream : null;
   const screenStream = screenState.status === 'capturing' ? screenState.stream : null;
   const mixedStream = mixerState.status === 'mixing' ? mixerState.mixedStream : null;
   const canMix = cameraState.status === 'capturing' && screenState.status === 'capturing';
+  const canStream = mixerState.status === 'mixing' && streamState.phase === 'IDLE';
+  const isStreaming = streamState.phase === 'STREAMING';
+  const isStreamBusy = streamState.phase === 'CREATING' || streamState.phase === 'CONNECTING';
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
@@ -94,12 +125,28 @@ export default function Home() {
             </p>
           )}
 
+          {streamState.phase === 'ERROR' && (
+            <p className="text-red-500 text-sm">配信エラー: {streamState.error}</p>
+          )}
+
+          {isStreaming && (
+            <div className="flex items-center gap-2 rounded-md bg-red-100 px-4 py-2 text-sm font-semibold text-red-700">
+              <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              配信中
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center gap-3">
             <select
               value={quality}
               onChange={(e) => setQuality(e.target.value as Quality)}
               className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-              disabled={cameraState.status === 'capturing' || cameraState.status === 'loading'}
+              disabled={
+                cameraState.status === 'capturing' ||
+                cameraState.status === 'loading' ||
+                isStreaming ||
+                isStreamBusy
+              }
             >
               <option value="1080p">1080p</option>
               <option value="720p">720p</option>
@@ -109,7 +156,8 @@ export default function Home() {
             {cameraState.status === 'capturing' ? (
               <button
                 onClick={stopCamera}
-                className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors"
+                disabled={isStreaming || isStreamBusy}
+                className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
               >
                 <FontAwesomeIcon icon={faStop} />
                 カメラ停止
@@ -117,7 +165,7 @@ export default function Home() {
             ) : (
               <button
                 onClick={() => startCamera({ video: true, audio: true, quality })}
-                disabled={cameraState.status === 'loading'}
+                disabled={cameraState.status === 'loading' || isStreaming || isStreamBusy}
                 className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 <FontAwesomeIcon icon={faVideo} />
@@ -128,7 +176,8 @@ export default function Home() {
             {screenState.status === 'capturing' ? (
               <button
                 onClick={stopScreen}
-                className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors"
+                disabled={isStreaming || isStreamBusy}
+                className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
               >
                 <FontAwesomeIcon icon={faStop} />
                 共有停止
@@ -136,7 +185,7 @@ export default function Home() {
             ) : (
               <button
                 onClick={startScreen}
-                disabled={screenState.status === 'loading'}
+                disabled={screenState.status === 'loading' || isStreaming || isStreamBusy}
                 className="flex items-center gap-2 rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 <FontAwesomeIcon icon={faDesktop} />
@@ -147,7 +196,8 @@ export default function Home() {
             {mixerState.status === 'mixing' ? (
               <button
                 onClick={stopMix}
-                className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors"
+                disabled={isStreaming || isStreamBusy}
+                className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
               >
                 <FontAwesomeIcon icon={faStop} />
                 合成停止
@@ -163,6 +213,36 @@ export default function Home() {
                 PiP合成
               </button>
             )}
+
+            {isStreaming ? (
+              <button
+                onClick={handleStopStream}
+                className="flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors"
+              >
+                <FontAwesomeIcon icon={faStop} />
+                配信停止
+              </button>
+            ) : (
+              <button
+                onClick={handleStartStream}
+                disabled={!canStream || isStreamBusy}
+                title={
+                  !canStream
+                    ? 'PiP合成を開始してから配信できます'
+                    : isStreamBusy
+                      ? '接続中...'
+                      : 'YouTube Live 配信を開始'
+                }
+                className="flex items-center gap-2 rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-40"
+              >
+                <FontAwesomeIcon icon={faBroadcastTower} />
+                {streamState.phase === 'CREATING'
+                  ? 'ブロードキャスト作成中...'
+                  : streamState.phase === 'CONNECTING'
+                    ? '接続中...'
+                    : '配信開始'}
+              </button>
+            )}
           </div>
 
           <button
@@ -174,9 +254,7 @@ export default function Home() {
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4">
-          <p className="text-gray-500">
-            Google アカウントでログインして配信を開始できます。
-          </p>
+          <p className="text-gray-500">Google アカウントでログインして配信を開始できます。</p>
           <LoginButton />
         </div>
       )}

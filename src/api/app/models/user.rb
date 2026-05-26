@@ -1,4 +1,6 @@
 class User < ApplicationRecord
+  before_create { self.id ||= SecureRandom.uuid }
+
   has_many :stream_sessions, dependent: :destroy
 
   encrypts :youtube_token
