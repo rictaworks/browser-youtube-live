@@ -126,7 +126,6 @@ export async function listStreamSessions(
   const res = await fetch(url, {
     method: 'GET',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
   });
   const data = await res.json();
   if (!res.ok) {
