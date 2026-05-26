@@ -31,8 +31,11 @@ const mockRecorder = {
 };
 
 // MediaRecorder モック
-(global as any).MediaRecorder = jest.fn(() => mockRecorder);
-(MediaRecorder as any).isTypeSupported = jest.fn(() => true);
+const MockMediaRecorderCtor = jest.fn(() => mockRecorder);
+Object.assign(global, { MediaRecorder: MockMediaRecorderCtor });
+(MockMediaRecorderCtor as unknown as { isTypeSupported: jest.Mock }).isTypeSupported = jest.fn(
+  () => true
+);
 
 // WebSocket モック
 class MockWebSocket {
@@ -47,7 +50,7 @@ class MockWebSocket {
     setTimeout(() => this.onopen?.(), 0);
   }
 }
-(global as any).WebSocket = MockWebSocket;
+Object.assign(global, { WebSocket: MockWebSocket });
 
 beforeEach(() => {
   jest.clearAllMocks();
