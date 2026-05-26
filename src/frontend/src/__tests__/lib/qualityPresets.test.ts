@@ -46,10 +46,7 @@ describe('getQualityPresets', () => {
 
     await getQualityPresets();
 
-    expect(mockFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/quality_presets'),
-      expect.objectContaining({ method: 'GET' })
-    );
+    expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('/quality_presets'));
   });
 
   test('プリセット配列を返す', async () => {

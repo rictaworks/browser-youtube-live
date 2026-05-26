@@ -67,6 +67,26 @@ RSpec.describe "POST /stream_sessions", type: :request do
     end
   end
 
+  context "無効な品質（disabled）を指定した場合" do
+    it "422 と quality_not_available コードを返す" do
+      post "/stream_sessions", params: { quality: "1080p" }, headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = JSON.parse(response.body)
+      expect(json["code"]).to eq("quality_not_available")
+    end
+  end
+
+  context "存在しない品質名を指定した場合" do
+    it "422 と quality_not_available コードを返す" do
+      post "/stream_sessions", params: { quality: "4K" }, headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = JSON.parse(response.body)
+      expect(json["code"]).to eq("quality_not_available")
+    end
+  end
+
   context "未認証" do
     it "401を返す" do
       post "/stream_sessions", params: { quality: "720p" }
