@@ -9,6 +9,7 @@ import { useUserMedia } from '@/hooks/useUserMedia';
 import { useDisplayMedia } from '@/hooks/useDisplayMedia';
 import { useCanvasMixer } from '@/hooks/useCanvasMixer';
 import { startStream, stopStream, StreamSessionState, IDLE } from '@/hooks/useStreamSession';
+import { useQualityPresets } from '@/hooks/useQualityPresets';
 import { config } from '@/lib/env';
 import type { Quality } from '@/lib/captureUserMedia';
 import { useState, useRef, useCallback } from 'react';
@@ -26,6 +27,7 @@ export default function Home() {
   const { state: cameraState, start: startCamera, stop: stopCamera } = useUserMedia();
   const { state: screenState, start: startScreen, stop: stopScreen } = useDisplayMedia();
   const { state: mixerState, start: startMix, stop: stopMix } = useCanvasMixer();
+  const { presets: qualityPresets, error: presetsError } = useQualityPresets();
   const [quality, setQuality] = useState<Quality>('720p');
   const [streamState, setStreamState] = useState<StreamSessionState>(IDLE);
   const wsRef = useRef<WebSocket | null>(null);
@@ -130,6 +132,12 @@ export default function Home() {
             </p>
           )}
 
+          {presetsError && (
+            <p className="text-yellow-600 text-sm">
+              品質プリセットの取得に失敗しました。デフォルト品質を使用します。
+            </p>
+          )}
+
           {streamState.phase === 'ERROR' && (
             <p className="text-red-500 text-sm">配信エラー: {streamState.error}</p>
           )}
@@ -158,7 +166,7 @@ export default function Home() {
             <select
               value={quality}
               onChange={(e) => setQuality(e.target.value as Quality)}
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm disabled:opacity-50"
               disabled={
                 cameraState.status === 'capturing' ||
                 cameraState.status === 'loading' ||
@@ -166,9 +174,16 @@ export default function Home() {
                 isStreamBusy
               }
             >
-              <option value="1080p">1080p</option>
-              <option value="720p">720p</option>
-              <option value="480p">480p</option>
+              {qualityPresets.length > 0 ? (
+                qualityPresets.map((p) => (
+                  <option key={p.name} value={p.name} disabled={!p.enabled}>
+                    {p.name}
+                    {!p.enabled ? ' (デモ版では利用不可)' : ''}
+                  </option>
+                ))
+              ) : (
+                <option value="720p">720p</option>
+              )}
             </select>
 
             {cameraState.status === 'capturing' ? (

@@ -30,6 +30,11 @@ RSpec.describe "POST /stream_sessions", type: :request do
     )
   end
 
+  let!(:preset_720p) do
+    QualityPreset.create!(name: "720p", width: 1280, height: 720, fps: 30, bitrate: 3000,
+                          codec: "libx264", enabled: true)
+  end
+
   before do
     allow_any_instance_of(YoutubeService).to receive(:create_broadcast).and_return(mock_broadcast)
     allow_any_instance_of(YoutubeService).to receive(:create_stream).and_return(mock_stream)
@@ -59,6 +64,26 @@ RSpec.describe "POST /stream_sessions", type: :request do
 
       json = JSON.parse(response.body)
       expect(json["quality"]).to eq("720p")
+    end
+  end
+
+  context "無効な品質（disabled）を指定した場合" do
+    it "422 と quality_not_available コードを返す" do
+      post "/stream_sessions", params: { quality: "1080p" }, headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = JSON.parse(response.body)
+      expect(json["code"]).to eq("quality_not_available")
+    end
+  end
+
+  context "存在しない品質名を指定した場合" do
+    it "422 と quality_not_available コードを返す" do
+      post "/stream_sessions", params: { quality: "4K" }, headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = JSON.parse(response.body)
+      expect(json["code"]).to eq("quality_not_available")
     end
   end
 
