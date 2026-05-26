@@ -10,6 +10,7 @@ import { useDisplayMedia } from '@/hooks/useDisplayMedia';
 import { useCanvasMixer } from '@/hooks/useCanvasMixer';
 import { startStream, stopStream, StreamSessionState, IDLE } from '@/hooks/useStreamSession';
 import { useStreamStats } from '@/hooks/useStreamStats';
+import { useQualityChange } from '@/hooks/useQualityChange';
 import { StreamDashboard } from '@/components/StreamDashboard';
 import { useQualityPresets } from '@/hooks/useQualityPresets';
 import { config } from '@/lib/env';
@@ -70,6 +71,7 @@ export default function Home() {
 
   const streamingWs = streamState.phase === 'STREAMING' ? streamState.ws : null;
   const streamStats = useStreamStats(streamingWs);
+  const qualityChange = useQualityChange(streamingWs);
 
   const cameraStream = cameraState.status === 'capturing' ? cameraState.stream : null;
   const screenStream = screenState.status === 'capturing' ? screenState.stream : null;
@@ -153,7 +155,7 @@ export default function Home() {
                 <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                 配信中
               </div>
-              <StreamDashboard stats={streamStats} />
+              <StreamDashboard stats={streamStats} qualityChange={qualityChange} />
             </div>
           )}
 

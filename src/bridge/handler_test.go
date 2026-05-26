@@ -21,8 +21,10 @@ func (m *mockFFmpegProcess) Close() error { return nil }
 func (m *mockFFmpegProcess) Stop()        { m.stopped = true }
 
 type mockFFmpegRunner struct {
-	buf  *bytes.Buffer
-	proc *mockFFmpegProcess
+	buf        *bytes.Buffer
+	proc       *mockFFmpegProcess
+	startCount int
+	lastParams FFmpegParams
 }
 
 func newMockFFmpegRunner() *mockFFmpegRunner {
@@ -30,7 +32,9 @@ func newMockFFmpegRunner() *mockFFmpegRunner {
 	return &mockFFmpegRunner{buf: buf, proc: &mockFFmpegProcess{Buffer: buf}}
 }
 
-func (m *mockFFmpegRunner) Start(rtmpURL string) (FFmpegProcess, error) {
+func (m *mockFFmpegRunner) Start(params FFmpegParams) (FFmpegProcess, error) {
+	m.startCount++
+	m.lastParams = params
 	return m.proc, nil
 }
 
