@@ -15,9 +15,10 @@ FOREIGN KEY ("stream_session_id")
 );
 CREATE INDEX "index_stream_stats_on_stream_session_id" ON "stream_stats" ("stream_session_id");
 CREATE INDEX "index_stream_stats_on_recorded_at" ON "stream_stats" ("recorded_at");
-CREATE TABLE IF NOT EXISTS "quality_presets" ("id" uuid NOT NULL PRIMARY KEY, "name" varchar NOT NULL, "width" integer NOT NULL, "height" integer NOT NULL, "fps" integer NOT NULL, "bitrate" integer NOT NULL, "codec" varchar NOT NULL, "created_at" datetime(6) NOT NULL, "updated_at" datetime(6) NOT NULL);
+CREATE TABLE IF NOT EXISTS "quality_presets" ("id" uuid NOT NULL PRIMARY KEY, "name" varchar NOT NULL, "width" integer NOT NULL, "height" integer NOT NULL, "fps" integer NOT NULL, "bitrate" integer NOT NULL, "codec" varchar NOT NULL, "created_at" datetime(6) NOT NULL, "updated_at" datetime(6) NOT NULL, "enabled" boolean DEFAULT 0 NOT NULL);
 CREATE UNIQUE INDEX "index_quality_presets_on_name" ON "quality_presets" ("name");
 INSERT INTO "schema_migrations" (version) VALUES
+('20260526032929'),
 ('20260524000001'),
 ('20260523000004'),
 ('20260523000003'),

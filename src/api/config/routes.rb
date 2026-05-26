@@ -9,6 +9,8 @@ Rails.application.routes.draw do
     delete 'sign_out', to: 'sessions#destroy'
   end
 
+  resources :quality_presets, only: [:index]
+
   resources :stream_sessions, only: [:create] do
     member { patch :end }
   end
