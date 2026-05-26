@@ -7,9 +7,6 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-
 jobs:
   frontend:
     name: Frontend (TypeScript + Jest)
@@ -19,6 +16,8 @@ jobs:
         working-directory: src/frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -45,6 +44,8 @@ jobs:
       AR_ENCRYPTION_KEY_DERIVATION_SALT: dummy_ar_encryption_key_derivation_salt_ci
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4.7'
@@ -63,6 +64,8 @@ jobs:
         working-directory: src/bridge
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@v5
         with:
           go-version: '1.26'
