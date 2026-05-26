@@ -27,6 +27,11 @@ func (h *Handler) RegisterSession(c *gin.Context) {
 		return
 	}
 
+	if err := ValidateRTMPURL(req.RTMPURL); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid rtmp_url"})
+		return
+	}
+
 	if err := h.store.Register(req.SessionID, req.RTMPURL); err != nil {
 		if errors.Is(err, ErrSessionExists) {
 			c.JSON(http.StatusConflict, gin.H{"error": "session already exists"})

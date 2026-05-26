@@ -18,7 +18,10 @@ func NewFFmpegRunner(path string) *RealFFmpegRunner {
 }
 
 func (r *RealFFmpegRunner) Start(rtmpURL string) (io.WriteCloser, error) {
+	// 多層防御: libavformat の出力プロトコルを RTMP 系のみに制限する。
+	// バリデーションは handler 側で実施済みだが、ここでも file:/http: 等を遮断する。
 	cmd := exec.Command(r.ffmpegPath,
+		"-protocol_whitelist", "rtmp,rtmps,tcp,tls,crypto",
 		"-re",
 		"-i", "pipe:0",
 		"-vcodec", "libx264",
