@@ -93,3 +93,44 @@ export async function recoverStreamSession(sessionId: string): Promise<RecoverSe
   }
   return data as RecoverSessionResponse;
 }
+
+export type StreamHistoryItem = {
+  id: string;
+  status: string;
+  quality: string;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+  duration_sec: number | null;
+  max_viewers: number | null;
+  recording_url: string | null;
+};
+
+export type StreamHistoryResponse = {
+  sessions: StreamHistoryItem[];
+  page: number;
+  per_page: number;
+  total_count: number;
+  total_pages: number;
+};
+
+export async function listStreamSessions(
+  params: { page?: number; perPage?: number } = {}
+): Promise<StreamHistoryResponse> {
+  const query = new URLSearchParams();
+  if (params.page !== undefined) query.set('page', String(params.page));
+  if (params.perPage !== undefined) query.set('per_page', String(params.perPage));
+  const qs = query.toString();
+  const url = `${config.apiBaseUrl}/stream_sessions${qs ? `?${qs}` : ''}`;
+
+  const res = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new StreamApiError(data.error ?? '配信履歴の取得に失敗しました', data.code);
+  }
+  return data as StreamHistoryResponse;
+}

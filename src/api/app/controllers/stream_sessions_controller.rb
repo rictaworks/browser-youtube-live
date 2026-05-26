@@ -3,6 +3,33 @@ class StreamSessionsController < ApplicationController
   before_action :set_session, only: [ :end, :stats, :recover ]
 
   VALID_BROADCAST_STATUSES = %w[created ready testStarting liveStarting live].freeze
+  DEFAULT_RETENTION_DAYS   = 7
+  DEFAULT_PER_PAGE         = 20
+  MAX_PER_PAGE             = 100
+
+  def index
+    retention_days = ENV.fetch("STREAM_HISTORY_RETENTION_DAYS", DEFAULT_RETENTION_DAYS).to_i
+    page           = [ params[:page].to_i, 1 ].max
+    per_page       = (params[:per_page].presence || DEFAULT_PER_PAGE).to_i.clamp(1, MAX_PER_PAGE)
+
+    scope = @current_user.stream_sessions
+                         .within_retention(retention_days)
+                         .order(created_at: :desc)
+    total_count = scope.count
+
+    sessions = scope.limit(per_page).offset((page - 1) * per_page).to_a
+    stats_map = StreamStat.where(stream_session_id: sessions.map(&:id))
+                          .group(:stream_session_id)
+                          .maximum(:viewer_count)
+
+    render json: {
+      sessions:    sessions.map { |s| history_json(s, stats_map[s.id]) },
+      page:        page,
+      per_page:    per_page,
+      total_count: total_count,
+      total_pages: (total_count.to_f / per_page).ceil
+    }
+  end
 
   def create
     youtube  = YoutubeService.new(@current_user)
@@ -144,6 +171,21 @@ class StreamSessionsController < ApplicationController
       rtmp_url:      session.rtmp_url,
       broadcast_id:  session.broadcast_id,
       new_broadcast: new_broadcast
+    }
+  end
+
+  def history_json(session, max_viewers)
+    duration = session.started_at && session.ended_at ? (session.ended_at - session.started_at).to_i : nil
+    {
+      id:            session.id,
+      status:        session.status,
+      quality:       session.quality,
+      started_at:    session.started_at,
+      ended_at:      session.ended_at,
+      created_at:    session.created_at,
+      duration_sec:  duration,
+      max_viewers:   max_viewers,
+      recording_url: nil
     }
   end
 end

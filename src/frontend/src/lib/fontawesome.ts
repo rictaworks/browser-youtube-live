@@ -1,8 +1,5 @@
 import { library } from '@fortawesome/fontawesome-svg-core';
-import {
-  faYoutube,
-  faGoogle,
-} from '@fortawesome/free-brands-svg-icons';
+import { faYoutube, faGoogle } from '@fortawesome/free-brands-svg-icons';
 import {
   faVideo,
   faVideoSlash,
@@ -18,6 +15,9 @@ import {
   faHistory,
   faCog,
   faSignOutAlt,
+  faHome,
+  faChevronLeft,
+  faChevronRight,
 } from '@fortawesome/free-solid-svg-icons';
 
 library.add(
@@ -36,7 +36,10 @@ library.add(
   faChartBar,
   faHistory,
   faCog,
-  faSignOutAlt
+  faSignOutAlt,
+  faHome,
+  faChevronLeft,
+  faChevronRight
 );
 
 export { library };

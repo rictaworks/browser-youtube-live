@@ -11,7 +11,7 @@ Rails.application.routes.draw do
 
   resources :quality_presets, only: [ :index ]
 
-  resources :stream_sessions, only: [ :create ] do
+  resources :stream_sessions, only: [ :create, :index ] do
     member do
       patch :end
       get   :stats

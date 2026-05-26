@@ -3,6 +3,7 @@ import {
   registerBridgeSession,
   endStreamSession,
   terminateBridgeSession,
+  listStreamSessions,
   StreamApiError,
 } from '@/lib/streamSession';
 
@@ -160,5 +161,60 @@ describe('terminateBridgeSession', () => {
     });
 
     await expect(terminateBridgeSession('sess-1')).rejects.toThrow(StreamApiError);
+  });
+});
+
+describe('listStreamSessions', () => {
+  test('GET /stream_sessions を呼び出して一覧を返す', async () => {
+    const payload = {
+      sessions: [
+        {
+          id: 'sess-1',
+          status: 'ended',
+          quality: '720p',
+          started_at: '2026-05-25T10:00:00Z',
+          ended_at: '2026-05-25T10:30:00Z',
+          created_at: '2026-05-25T09:59:00Z',
+          duration_sec: 1800,
+          max_viewers: 42,
+          recording_url: null,
+        },
+      ],
+      page: 1,
+      per_page: 20,
+      total_count: 1,
+      total_pages: 1,
+    };
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => payload });
+
+    const result = await listStreamSessions();
+
+    expect(result).toEqual(payload);
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/stream_sessions'),
+      expect.objectContaining({ credentials: 'include' })
+    );
+  });
+
+  test('page / per_page をクエリパラメータに含める', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ sessions: [], page: 2, per_page: 5, total_count: 0, total_pages: 0 }),
+    });
+
+    await listStreamSessions({ page: 2, perPage: 5 });
+
+    const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+    expect(calledUrl).toContain('page=2');
+    expect(calledUrl).toContain('per_page=5');
+  });
+
+  test('APIエラー時に StreamApiError を投げる', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'unauthorized' }),
+    });
+
+    await expect(listStreamSessions()).rejects.toThrow(StreamApiError);
   });
 });
