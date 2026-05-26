@@ -174,18 +174,16 @@ export default function Home() {
                 isStreamBusy
               }
             >
-              {qualityPresets.length > 0
-                ? qualityPresets.map((p) => (
-                    <option key={p.name} value={p.name} disabled={!p.enabled}>
-                      {p.name}
-                      {!p.enabled ? ' (デモ版では利用不可)' : ''}
-                    </option>
-                  ))
-                : (['1080p', '720p', '480p'] as Quality[]).map((q) => (
-                    <option key={q} value={q}>
-                      {q}
-                    </option>
-                  ))}
+              {qualityPresets.length > 0 ? (
+                qualityPresets.map((p) => (
+                  <option key={p.name} value={p.name} disabled={!p.enabled}>
+                    {p.name}
+                    {!p.enabled ? ' (デモ版では利用不可)' : ''}
+                  </option>
+                ))
+              ) : (
+                <option value="720p">720p</option>
+              )}
             </select>
 
             {cameraState.status === 'capturing' ? (
