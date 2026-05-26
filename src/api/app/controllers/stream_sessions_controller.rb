@@ -58,11 +58,9 @@ class StreamSessionsController < ApplicationController
 
   def stats
     stat = @stream_session.stream_stats.order(recorded_at: :desc).first
-    if stat.nil?
-      render json: { message: "統計データがまだありません" }, status: :no_content
-      return
-    end
-    render json: stats_json(stat)
+    return head :no_content if stat.nil?
+
+    render json: stats_json(stat, @stream_session)
   end
 
   private
@@ -88,9 +86,8 @@ class StreamSessionsController < ApplicationController
     }
   end
 
-  def stats_json(stat)
-    started_at = stat.stream_session.started_at
-    elapsed = started_at ? (Time.current - started_at).to_i : 0
+  def stats_json(stat, session)
+    elapsed = session.started_at ? (Time.current - session.started_at).to_i : 0
     {
       id:              stat.id,
       recorded_at:     stat.recorded_at,
