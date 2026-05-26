@@ -421,3 +421,161 @@ RSpec.describe "POST /stream_sessions/:id/recover", type: :request do
     end
   end
 end
+
+RSpec.describe "GET /stream_sessions", type: :request do
+  include FactoryBot::Syntax::Methods
+
+  let(:user) { create(:user) }
+  let(:other_user) { create(:user) }
+  let(:jwt_token) { JwtService.encode(user_id: user.id) }
+
+  def auth_headers
+    { "Cookie" => "jwt_token=#{jwt_token}" }
+  end
+
+  context "未認証" do
+    it "401 を返す" do
+      get "/stream_sessions"
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  context "セッション 0 件の認証済みユーザー" do
+    it "空配列とページネーション情報を返す" do
+      get "/stream_sessions", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json["sessions"]).to eq([])
+      expect(json["total_count"]).to eq(0)
+      expect(json["total_pages"]).to eq(0)
+      expect(json["page"]).to eq(1)
+    end
+  end
+
+  context "認証済みユーザー" do
+    let!(:my_session_recent) do
+      create(:stream_session, user: user, status: "ended",
+             started_at: 2.hours.ago, ended_at: 1.hour.ago, created_at: 1.day.ago)
+    end
+    let!(:my_session_older) do
+      create(:stream_session, user: user, status: "ended",
+             started_at: 3.days.ago, ended_at: 3.days.ago + 30.minutes, created_at: 3.days.ago)
+    end
+    let!(:other_session) do
+      create(:stream_session, user: other_user, status: "ended", created_at: 1.day.ago)
+    end
+
+    it "自分のセッションのみ返す" do
+      get "/stream_sessions", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      ids = json["sessions"].map { |s| s["id"] }
+      expect(ids).to contain_exactly(my_session_recent.id, my_session_older.id)
+    end
+
+    it "created_at 降順で返す" do
+      get "/stream_sessions", headers: auth_headers
+
+      json = JSON.parse(response.body)
+      ids = json["sessions"].map { |s| s["id"] }
+      expect(ids).to eq([ my_session_recent.id, my_session_older.id ])
+    end
+
+    it "各セッションに集計フィールドが含まれる" do
+      create(:stream_stat, stream_session: my_session_recent, recorded_at: 90.minutes.ago,
+             viewer_count: 5)
+      create(:stream_stat, stream_session: my_session_recent, recorded_at: 80.minutes.ago,
+             viewer_count: 12)
+
+      get "/stream_sessions", headers: auth_headers
+
+      json = JSON.parse(response.body)
+      first = json["sessions"].find { |s| s["id"] == my_session_recent.id }
+      expect(first["max_viewers"]).to eq(12)
+      expect(first["duration_sec"]).to eq(3600)
+      expect(first).to have_key("recording_url")
+      expect(first["quality"]).to eq("720p")
+      expect(first["status"]).to eq("ended")
+      expect(first).to have_key("started_at")
+    end
+
+    it "stream_stats が無い場合 max_viewers は nil" do
+      get "/stream_sessions", headers: auth_headers
+
+      json = JSON.parse(response.body)
+      first = json["sessions"].find { |s| s["id"] == my_session_recent.id }
+      expect(first["max_viewers"]).to be_nil
+    end
+
+    it "ended_at が未設定なら duration_sec は nil" do
+      live = create(:stream_session, user: user, status: "live",
+                    started_at: 10.minutes.ago, ended_at: nil, created_at: 5.minutes.ago)
+
+      get "/stream_sessions", headers: auth_headers
+
+      json = JSON.parse(response.body)
+      live_json = json["sessions"].find { |s| s["id"] == live.id }
+      expect(live_json["duration_sec"]).to be_nil
+    end
+  end
+
+  context "保持期間フィルタ" do
+    before { ENV["STREAM_HISTORY_RETENTION_DAYS"] = "7" }
+    after  { ENV.delete("STREAM_HISTORY_RETENTION_DAYS") }
+
+    let!(:recent_session) { create(:stream_session, user: user, created_at: 3.days.ago) }
+    let!(:expired_session) { create(:stream_session, user: user, created_at: 10.days.ago) }
+
+    it "保持期間外のセッションは除外する" do
+      get "/stream_sessions", headers: auth_headers
+
+      json = JSON.parse(response.body)
+      ids = json["sessions"].map { |s| s["id"] }
+      expect(ids).to include(recent_session.id)
+      expect(ids).not_to include(expired_session.id)
+    end
+  end
+
+  context "ページネーション" do
+    before do
+      25.times do |i|
+        create(:stream_session, user: user, created_at: (i + 1).hours.ago)
+      end
+    end
+
+    it "デフォルトは20件返す" do
+      get "/stream_sessions", headers: auth_headers
+
+      json = JSON.parse(response.body)
+      expect(json["sessions"].length).to eq(20)
+      expect(json["page"]).to eq(1)
+      expect(json["total_count"]).to eq(25)
+      expect(json["total_pages"]).to eq(2)
+    end
+
+    it "page=2 で次ページを返す" do
+      get "/stream_sessions", params: { page: 2 }, headers: auth_headers
+
+      json = JSON.parse(response.body)
+      expect(json["sessions"].length).to eq(5)
+      expect(json["page"]).to eq(2)
+    end
+
+    it "per_page を制限する" do
+      get "/stream_sessions", params: { per_page: 5 }, headers: auth_headers
+
+      json = JSON.parse(response.body)
+      expect(json["sessions"].length).to eq(5)
+      expect(json["total_pages"]).to eq(5)
+    end
+
+    it "per_page の上限は100" do
+      get "/stream_sessions", params: { per_page: 999 }, headers: auth_headers
+
+      json = JSON.parse(response.body)
+      expect(json["sessions"].length).to be <= 100
+    end
+  end
+end

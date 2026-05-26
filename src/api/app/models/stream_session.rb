@@ -11,4 +11,6 @@ class StreamSession < ApplicationRecord
 
   validates :status,  presence: true, inclusion: { in: STATUSES }
   validates :quality, presence: true, inclusion: { in: QUALITIES }
+
+  scope :within_retention, ->(days) { where("created_at >= ?", days.to_i.days.ago) }
 end

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import LoginButton from '@/components/LoginButton';
 import CameraPreview from '@/components/CameraPreview';
 import ScreenPreview from '@/components/ScreenPreview';
@@ -29,6 +30,7 @@ import {
   faDesktop,
   faLayerGroup,
   faBroadcastTower,
+  faHistory,
 } from '@fortawesome/free-solid-svg-icons';
 
 export default function Home() {
@@ -337,12 +339,21 @@ export default function Home() {
             )}
           </div>
 
-          <button
-            onClick={handleSignOut}
-            className="rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300 transition-colors"
-          >
-            ログアウト
-          </button>
+          <div className="flex gap-3">
+            <Link
+              href="/history"
+              className="flex items-center gap-2 rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300 transition-colors"
+            >
+              <FontAwesomeIcon icon={faHistory} />
+              配信履歴
+            </Link>
+            <button
+              onClick={handleSignOut}
+              className="rounded-md bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-300 transition-colors"
+            >
+              ログアウト
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4">
