@@ -11,6 +11,9 @@ on:
     paths:
       - 'src/**'
 
+permissions:
+  contents: read
+
 jobs:
   frontend:
     name: Frontend (TypeScript + Jest)
