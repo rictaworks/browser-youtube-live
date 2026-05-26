@@ -1,5 +1,6 @@
 class StreamSessionsController < ApplicationController
   before_action :authenticate!
+  before_action :set_session, only: [:end]
 
   def create
     youtube  = YoutubeService.new(@current_user)
@@ -29,7 +30,29 @@ class StreamSessionsController < ApplicationController
            status: :unprocessable_entity
   end
 
+  def end
+    if @stream_session.status == "ended"
+      render json: { error: "セッションはすでに終了しています" }, status: :unprocessable_entity
+      return
+    end
+
+    youtube = YoutubeService.new(@current_user)
+    youtube.end_broadcast(broadcast_id: @stream_session.broadcast_id)
+
+    @stream_session.update!(status: "ended", ended_at: Time.current)
+    render json: session_json(@stream_session)
+
+  rescue YoutubeService::QuotaExceededError
+    render json: { error: "YouTube API クォータが上限に達しました", code: "quota_exceeded" },
+           status: :unprocessable_entity
+  end
+
   private
+
+  def set_session
+    @stream_session = @current_user.stream_sessions.find_by(id: params[:id])
+    render json: { error: "セッションが見つかりません" }, status: :not_found unless @stream_session
+  end
 
   def session_params
     params.permit(:quality)
@@ -42,6 +65,7 @@ class StreamSessionsController < ApplicationController
       rtmp_url:     session.rtmp_url,
       status:       session.status,
       quality:      session.quality,
+      ended_at:     session.ended_at,
       created_at:   session.created_at
     }
   end

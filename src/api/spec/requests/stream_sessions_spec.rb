@@ -99,3 +99,87 @@ RSpec.describe "POST /stream_sessions", type: :request do
     end
   end
 end
+
+RSpec.describe "PATCH /stream_sessions/:id/end", type: :request do
+  include FactoryBot::Syntax::Methods
+
+  let(:user) { create(:user) }
+  let(:jwt_token) { JwtService.encode(user_id: user.id) }
+
+  def auth_headers
+    { "Cookie" => "jwt_token=#{jwt_token}" }
+  end
+
+  before do
+    allow_any_instance_of(YoutubeService).to receive(:end_broadcast).and_return(nil)
+  end
+
+  context "認証済み・自分の live セッション" do
+    let(:session) { create(:stream_session, user: user, status: "live", broadcast_id: "broadcast_abc") }
+
+    it "200 を返してステータスを ended に更新する" do
+      patch "/stream_sessions/#{session.id}/end", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json["status"]).to eq("ended")
+    end
+
+    it "ended_at が設定される" do
+      patch "/stream_sessions/#{session.id}/end", headers: auth_headers
+
+      expect(session.reload.ended_at).not_to be_nil
+    end
+
+    it "YoutubeService#end_broadcast を呼ぶ" do
+      expect_any_instance_of(YoutubeService).to receive(:end_broadcast)
+        .with(broadcast_id: "broadcast_abc")
+      patch "/stream_sessions/#{session.id}/end", headers: auth_headers
+    end
+  end
+
+  context "created ステータスのセッション（まだ配信開始前）" do
+    let(:session) { create(:stream_session, user: user, status: "created") }
+
+    it "200 を返してステータスを ended に更新する" do
+      patch "/stream_sessions/#{session.id}/end", headers: auth_headers
+      expect(response).to have_http_status(:ok)
+      expect(session.reload.status).to eq("ended")
+    end
+  end
+
+  context "すでに ended のセッション" do
+    let(:session) { create(:stream_session, user: user, status: "ended") }
+
+    it "422 を返す" do
+      patch "/stream_sessions/#{session.id}/end", headers: auth_headers
+      expect(response).to have_http_status(:unprocessable_entity)
+    end
+  end
+
+  context "他人のセッション" do
+    let(:other_user) { create(:user) }
+    let(:other_session) { create(:stream_session, user: other_user, status: "live") }
+
+    it "404 を返す" do
+      patch "/stream_sessions/#{other_session.id}/end", headers: auth_headers
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  context "未認証" do
+    let(:session) { create(:stream_session, user: user, status: "live") }
+
+    it "401 を返す" do
+      patch "/stream_sessions/#{session.id}/end"
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  context "存在しないセッション" do
+    it "404 を返す" do
+      patch "/stream_sessions/#{SecureRandom.uuid}/end", headers: auth_headers
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+end

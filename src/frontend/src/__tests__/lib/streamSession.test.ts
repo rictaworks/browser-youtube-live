@@ -1,4 +1,10 @@
-import { createStreamSession, registerBridgeSession, StreamApiError } from '@/lib/streamSession';
+import {
+  createStreamSession,
+  registerBridgeSession,
+  endStreamSession,
+  terminateBridgeSession,
+  StreamApiError,
+} from '@/lib/streamSession';
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
@@ -100,5 +106,59 @@ describe('registerBridgeSession', () => {
     await expect(registerBridgeSession('sess-1', 'rtmp://example.com')).rejects.toThrow(
       StreamApiError
     );
+  });
+});
+
+describe('endStreamSession', () => {
+  test('PATCH /stream_sessions/:id/end を呼び出す', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'sess-1', status: 'ended' }),
+    });
+
+    await endStreamSession('sess-1');
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/stream_sessions/sess-1/end'),
+      expect.objectContaining({ method: 'PATCH', credentials: 'include' })
+    );
+  });
+
+  test('APIエラー時に StreamApiError を投げる', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'すでに終了しています' }),
+    });
+
+    await expect(endStreamSession('sess-1')).rejects.toThrow(StreamApiError);
+  });
+});
+
+describe('terminateBridgeSession', () => {
+  test('DELETE /bridge/sessions/:id を呼び出す', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+    await terminateBridgeSession('sess-1');
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining('/bridge/sessions/sess-1'),
+      expect.objectContaining({ method: 'DELETE' })
+    );
+  });
+
+  test('ws:// URL を http:// に変換してリクエストする', async () => {
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    await terminateBridgeSession('sess-1');
+    const calledUrl = mockFetch.mock.calls[0]?.[0] as string;
+    expect(calledUrl).toMatch(/^http:\/\//);
+  });
+
+  test('エラー時に StreamApiError を投げる', async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: 'not found' }),
+    });
+
+    await expect(terminateBridgeSession('sess-1')).rejects.toThrow(StreamApiError);
   });
 });
