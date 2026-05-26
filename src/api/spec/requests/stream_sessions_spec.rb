@@ -30,6 +30,11 @@ RSpec.describe "POST /stream_sessions", type: :request do
     )
   end
 
+  let!(:preset_720p) do
+    QualityPreset.create!(name: "720p", width: 1280, height: 720, fps: 30, bitrate: 3000,
+                          codec: "libx264", enabled: true)
+  end
+
   before do
     allow_any_instance_of(YoutubeService).to receive(:create_broadcast).and_return(mock_broadcast)
     allow_any_instance_of(YoutubeService).to receive(:create_stream).and_return(mock_stream)

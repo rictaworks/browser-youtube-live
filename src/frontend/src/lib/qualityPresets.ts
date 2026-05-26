@@ -11,10 +11,7 @@ export type QualityPresetResponse = {
 };
 
 export async function getQualityPresets(): Promise<QualityPresetResponse[]> {
-  const res = await fetch(`${config.apiBaseUrl}/quality_presets`, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  });
+  const res = await fetch(`${config.apiBaseUrl}/quality_presets`);
   if (!res.ok) {
     throw new Error('品質プリセットの取得に失敗しました');
   }

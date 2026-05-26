@@ -5,7 +5,13 @@ class StreamSessionsController < ApplicationController
   def create
     youtube  = YoutubeService.new(@current_user)
     title    = "Live #{Time.current.strftime('%Y-%m-%d %H:%M')}"
-    quality  = session_params[:quality].presence || "720p"
+    quality_name = session_params[:quality].presence || "720p"
+    preset = QualityPreset.find_by(name: quality_name, enabled: true)
+    unless preset
+      render json: { error: "指定された品質は利用できません", code: "quality_not_available" },
+             status: :unprocessable_entity
+      return
+    end
 
     broadcast = youtube.create_broadcast(title: title)
     stream    = youtube.create_stream(title: title)
@@ -17,7 +23,7 @@ class StreamSessionsController < ApplicationController
       stream_key:   stream.cdn.ingestion_info.stream_name,
       rtmp_url:     stream.cdn.ingestion_info.ingestion_address,
       status:       "created",
-      quality:      quality
+      quality:      quality_name
     )
 
     render json: session_json(session_record), status: :created

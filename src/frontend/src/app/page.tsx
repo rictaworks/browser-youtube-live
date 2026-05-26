@@ -27,7 +27,7 @@ export default function Home() {
   const { state: cameraState, start: startCamera, stop: stopCamera } = useUserMedia();
   const { state: screenState, start: startScreen, stop: stopScreen } = useDisplayMedia();
   const { state: mixerState, start: startMix, stop: stopMix } = useCanvasMixer();
-  const { presets: qualityPresets } = useQualityPresets();
+  const { presets: qualityPresets, error: presetsError } = useQualityPresets();
   const [quality, setQuality] = useState<Quality>('720p');
   const [streamState, setStreamState] = useState<StreamSessionState>(IDLE);
   const wsRef = useRef<WebSocket | null>(null);
@@ -129,6 +129,12 @@ export default function Home() {
                 : screenState.error.name === 'NotSupportedError'
                   ? 'このブラウザは画面共有に対応していません（Chrome / Firefox / Edge をご利用ください）。'
                   : `画面共有エラー: ${screenState.error.message}`}
+            </p>
+          )}
+
+          {presetsError && (
+            <p className="text-yellow-600 text-sm">
+              品質プリセットの取得に失敗しました。デフォルト品質を使用します。
             </p>
           )}
 

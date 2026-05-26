@@ -1,7 +1,7 @@
 class QualityPresetsController < ApplicationController
   def index
     presets = QualityPreset.order(height: :desc)
-    render json: presets.map { |p|
+    render json: presets.map do |p|
       {
         name:    p.name,
         width:   p.width,
@@ -11,6 +11,6 @@ class QualityPresetsController < ApplicationController
         codec:   p.codec,
         enabled: p.enabled
       }
-    }
+    end
   end
 end
