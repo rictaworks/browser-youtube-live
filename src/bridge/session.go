@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"sync"
+	"time"
 )
 
 var ErrSessionNotFound = errors.New("session not found")
@@ -14,6 +15,8 @@ type Session struct {
 	mu        sync.Mutex
 	stopFunc  func()
 	writeChan chan []byte
+	adapter   *QualityAdapter
+	restartCh chan QualityParams
 }
 
 func (s *Session) SetStopFunc(f func()) {
@@ -35,6 +38,36 @@ func (s *Session) SetWriteChan(ch chan []byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.writeChan = ch
+}
+
+// Adapt は品質アダプターに新しい統計を渡し、調整結果を返す。
+func (s *Session) Adapt(fps float64, droppedFrames, bufferSizeKB int, now time.Time) AdaptResult {
+	return s.adapter.Adapt(fps, droppedFrames, bufferSizeKB, now)
+}
+
+// CurrentBitrate は現在のビットレート設定を返す。
+func (s *Session) CurrentBitrate() int {
+	return s.adapter.CurrentBitrate()
+}
+
+// SendRestart はFFmpeg再起動シグナルを送信する（チャネル満杯時はドロップ）。
+func (s *Session) SendRestart(params QualityParams) bool {
+	select {
+	case s.restartCh <- params:
+		return true
+	default:
+		return false
+	}
+}
+
+// RecvRestart はFFmpeg再起動シグナルを非ブロッキングで受信する。
+func (s *Session) RecvRestart() (QualityParams, bool) {
+	select {
+	case params := <-s.restartCh:
+		return params, true
+	default:
+		return QualityParams{}, false
+	}
 }
 
 func (s *Session) TrySendStats(data []byte) bool {
@@ -67,7 +100,12 @@ func (s *SessionStore) Register(id, rtmpURL string) error {
 	if _, ok := s.sessions[id]; ok {
 		return ErrSessionExists
 	}
-	s.sessions[id] = &Session{ID: id, RTMPURL: rtmpURL}
+	s.sessions[id] = &Session{
+		ID:        id,
+		RTMPURL:   rtmpURL,
+		adapter:   NewQualityAdapter(defaultBitrateKbps, defaultResolution),
+		restartCh: make(chan QualityParams, 1),
+	}
 	return nil
 }
 

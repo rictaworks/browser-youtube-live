@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os/exec"
 	"sync"
@@ -14,8 +15,14 @@ type FFmpegProcess interface {
 	Stop()
 }
 
+// FFmpegParams は FFmpeg 起動パラメータを保持する。
+type FFmpegParams struct {
+	RTMPURL     string
+	BitrateKbps int // 0 = libx264 デフォルト
+}
+
 type FFmpegRunner interface {
-	Start(rtmpURL string) (FFmpegProcess, error)
+	Start(params FFmpegParams) (FFmpegProcess, error)
 }
 
 type RealFFmpegRunner struct {
@@ -60,18 +67,20 @@ func (p *realFFmpegProcess) Stop() {
 	})
 }
 
-func (r *RealFFmpegRunner) Start(rtmpURL string) (FFmpegProcess, error) {
+func (r *RealFFmpegRunner) Start(params FFmpegParams) (FFmpegProcess, error) {
 	// 多層防御: libavformat の出力プロトコルを RTMP 系のみに制限する。
 	// バリデーションは handler 側で実施済みだが、ここでも file:/http: 等を遮断する。
-	cmd := exec.Command(r.ffmpegPath,
+	args := []string{
 		"-protocol_whitelist", "rtmp,rtmps,tcp,tls,crypto",
 		"-re",
 		"-i", "pipe:0",
 		"-vcodec", "libx264",
-		"-acodec", "aac",
-		"-f", "flv",
-		rtmpURL,
-	)
+	}
+	if params.BitrateKbps > 0 {
+		args = append(args, "-b:v", fmt.Sprintf("%dk", params.BitrateKbps))
+	}
+	args = append(args, "-acodec", "aac", "-f", "flv", params.RTMPURL)
+	cmd := exec.Command(r.ffmpegPath, args...)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

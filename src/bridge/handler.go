@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -80,13 +81,14 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	proc, err := h.runner.Start(sess.RTMPURL)
+	var proc FFmpegProcess
+	proc, err = h.runner.Start(FFmpegParams{RTMPURL: sess.RTMPURL, BitrateKbps: sess.CurrentBitrate()})
 	if err != nil {
 		log.Printf("FFmpeg start error: %v", err)
 		conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"ffmpeg start failed"}`))
 		return
 	}
-	defer proc.Stop()
+	defer func() { proc.Stop() }()
 	defer h.store.Delete(sessionID)
 
 	writeCh := make(chan []byte, 32)
@@ -122,6 +124,19 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 			break
 		}
 		if msgType == websocket.BinaryMessage {
+			// 品質変更シグナルがあればFFmpegを再起動する（非ブロッキング）
+			if params, ok := sess.RecvRestart(); ok {
+				newProc, restartErr := h.runner.Start(FFmpegParams{RTMPURL: sess.RTMPURL, BitrateKbps: params.BitrateKbps})
+				if restartErr == nil {
+					proc.Stop()
+					proc = newProc
+					log.Printf("[adaptive] session %s FFmpeg restarted: bitrate=%dkbps resolution=%s",
+						sessionID, params.BitrateKbps, params.Resolution)
+				} else {
+					log.Printf("[adaptive] FFmpeg restart error (session %s): %v", sessionID, restartErr)
+				}
+			}
+
 			if _, err := proc.Write(data); err != nil {
 				log.Printf("FFmpeg write error (session %s): %v", sessionID, err)
 				break
@@ -148,6 +163,45 @@ func (h *Handler) PushStats(c *gin.Context) {
 		return
 	}
 
+	h.adaptQuality(sess, body)
+
 	sess.TrySendStats(body)
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// adaptQuality は統計ボディを解析し、品質自動調整を実行する。
+func (h *Handler) adaptQuality(sess *Session, body []byte) {
+	var statsPayload struct {
+		FPS          float64 `json:"fps"`
+		DroppedFrames int    `json:"dropped_frames"`
+		BufferSizeKB  int    `json:"buffer_size_kb"`
+	}
+	if err := json.Unmarshal(body, &statsPayload); err != nil {
+		return
+	}
+
+	result := sess.Adapt(statsPayload.FPS, statsPayload.DroppedFrames, statsPayload.BufferSizeKB, time.Now())
+
+	if result.BufferWarn {
+		log.Printf("[adaptive] session %s buffer warning: buffer_size_kb=%d (limit=%d)",
+			sess.ID, statsPayload.BufferSizeKB, bufferWarnKB)
+	}
+
+	if result.Action != "stable" {
+		log.Printf("[adaptive] session %s quality %s: bitrate=%dkbps resolution=%s",
+			sess.ID, result.Action, result.NewBitrate, result.NewResolution)
+		params := QualityParams{BitrateKbps: result.NewBitrate, Resolution: result.NewResolution}
+		sess.SendRestart(params)
+
+		// フロントエンドへ品質変更イベントを送信
+		event := map[string]interface{}{
+			"type":           "quality_change",
+			"action":         result.Action,
+			"new_bitrate":    result.NewBitrate,
+			"new_resolution": result.NewResolution,
+		}
+		if eventJSON, marshalErr := json.Marshal(event); marshalErr == nil {
+			sess.TrySendStats(eventJSON)
+		}
+	}
 }

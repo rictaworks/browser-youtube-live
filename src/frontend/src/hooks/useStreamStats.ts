@@ -22,8 +22,9 @@ export function useStreamStats(ws: WebSocket | null): StreamStats | null {
     const handler = (event: MessageEvent) => {
       if (typeof event.data !== 'string') return;
       try {
-        const data = JSON.parse(event.data) as StreamStats;
-        setStats(data);
+        const data = JSON.parse(event.data);
+        if (data.type === 'quality_change') return; // quality events handled by useQualityChange
+        setStats(data as StreamStats);
       } catch {
         // ignore malformed messages
       }
