@@ -208,3 +208,65 @@ RSpec.describe "PATCH /stream_sessions/:id/end", type: :request do
     end
   end
 end
+
+RSpec.describe "GET /stream_sessions/:id/stats", type: :request do
+  include FactoryBot::Syntax::Methods
+
+  let(:user) { create(:user) }
+  let(:jwt_token) { JwtService.encode(user_id: user.id) }
+
+  def auth_headers
+    { "Cookie" => "jwt_token=#{jwt_token}" }
+  end
+
+  let(:session) { create(:stream_session, user: user, status: "live") }
+
+  context "統計データが存在する場合" do
+    let!(:stat) do
+      StreamStat.create!(
+        stream_session: session,
+        recorded_at: Time.current,
+        bitrate_kbps: 3000,
+        fps: 30.0,
+        dropped_frames: 2,
+        viewer_count: 42,
+        buffer_size_kb: 256
+      )
+    end
+
+    it "200 を返して最新の統計を返す" do
+      get "/stream_sessions/#{session.id}/stats", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json["bitrate_kbps"]).to eq(3000)
+      expect(json["viewer_count"]).to eq(42)
+      expect(json["fps"]).to eq("30.0")
+      expect(json["elapsed_seconds"]).to be_a(Integer)
+    end
+  end
+
+  context "統計データがまだない場合" do
+    it "204 を返す" do
+      get "/stream_sessions/#{session.id}/stats", headers: auth_headers
+      expect(response).to have_http_status(:no_content)
+    end
+  end
+
+  context "他人のセッション" do
+    let(:other_user) { create(:user) }
+    let(:other_session) { create(:stream_session, user: other_user, status: "live") }
+
+    it "404 を返す" do
+      get "/stream_sessions/#{other_session.id}/stats", headers: auth_headers
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  context "未認証" do
+    it "401 を返す" do
+      get "/stream_sessions/#{session.id}/stats"
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+end

@@ -1,6 +1,6 @@
 class StreamSessionsController < ApplicationController
   before_action :authenticate!
-  before_action :set_session, only: [:end]
+  before_action :set_session, only: [:end, :stats]
 
   def create
     youtube  = YoutubeService.new(@current_user)
@@ -23,8 +23,11 @@ class StreamSessionsController < ApplicationController
       stream_key:   stream.cdn.ingestion_info.stream_name,
       rtmp_url:     stream.cdn.ingestion_info.ingestion_address,
       status:       "created",
-      quality:      quality_name
+      quality:      quality_name,
+      started_at:   Time.current
     )
+
+    CollectStreamStatsJob.perform_in(CollectStreamStatsJob::INTERVAL_SECONDS, session_record.id)
 
     render json: session_json(session_record), status: :created
 
@@ -53,6 +56,13 @@ class StreamSessionsController < ApplicationController
            status: :unprocessable_entity
   end
 
+  def stats
+    stat = @stream_session.stream_stats.order(recorded_at: :desc).first
+    return head :no_content if stat.nil?
+
+    render json: stats_json(stat, @stream_session)
+  end
+
   private
 
   def set_session
@@ -73,6 +83,20 @@ class StreamSessionsController < ApplicationController
       quality:      session.quality,
       ended_at:     session.ended_at,
       created_at:   session.created_at
+    }
+  end
+
+  def stats_json(stat, session)
+    elapsed = session.started_at ? (Time.current - session.started_at).to_i : 0
+    {
+      id:              stat.id,
+      recorded_at:     stat.recorded_at,
+      bitrate_kbps:    stat.bitrate_kbps,
+      fps:             stat.fps,
+      dropped_frames:  stat.dropped_frames,
+      viewer_count:    stat.viewer_count,
+      buffer_size_kb:  stat.buffer_size_kb,
+      elapsed_seconds: elapsed
     }
   end
 end

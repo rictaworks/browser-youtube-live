@@ -9,6 +9,8 @@ import { useUserMedia } from '@/hooks/useUserMedia';
 import { useDisplayMedia } from '@/hooks/useDisplayMedia';
 import { useCanvasMixer } from '@/hooks/useCanvasMixer';
 import { startStream, stopStream, StreamSessionState, IDLE } from '@/hooks/useStreamSession';
+import { useStreamStats } from '@/hooks/useStreamStats';
+import { StreamDashboard } from '@/components/StreamDashboard';
 import { useQualityPresets } from '@/hooks/useQualityPresets';
 import { config } from '@/lib/env';
 import type { Quality } from '@/lib/captureUserMedia';
@@ -65,6 +67,9 @@ export default function Home() {
     recorderRef.current = null;
     await stopStream(ws, recorder, sessionId, setStreamState);
   }, [streamState]);
+
+  const streamingWs = streamState.phase === 'STREAMING' ? streamState.ws : null;
+  const streamStats = useStreamStats(streamingWs);
 
   const cameraStream = cameraState.status === 'capturing' ? cameraState.stream : null;
   const screenStream = screenState.status === 'capturing' ? screenState.stream : null;
@@ -143,9 +148,12 @@ export default function Home() {
           )}
 
           {isStreaming && (
-            <div className="flex items-center gap-2 rounded-md bg-red-100 px-4 py-2 text-sm font-semibold text-red-700">
-              <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              配信中
+            <div className="flex flex-col items-center gap-3 w-full">
+              <div className="flex items-center gap-2 rounded-md bg-red-100 px-4 py-2 text-sm font-semibold text-red-700">
+                <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                配信中
+              </div>
+              <StreamDashboard stats={streamStats} />
             </div>
           )}
 

@@ -40,6 +40,7 @@ func newTestRouter(store *SessionStore, runner FFmpegRunner) *gin.Engine {
 	h := &Handler{store: store, runner: runner}
 	r.POST("/bridge/sessions", h.RegisterSession)
 	r.DELETE("/bridge/sessions/:id", h.StopSession)
+	r.POST("/bridge/sessions/:id/stats", h.PushStats)
 	r.GET("/ws", h.HandleWebSocket)
 	return r
 }
@@ -142,6 +143,94 @@ func TestRegisterSession(t *testing.T) {
 			"rtmp_url":   "file:///etc/cron.d/pwn",
 		})
 		req := httptest.NewRequest(http.MethodPost, "/bridge/sessions", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("expected 400, got %d", w.Code)
+		}
+	})
+}
+
+func TestPushStats(t *testing.T) {
+	t.Run("存在しないセッション 404", func(t *testing.T) {
+		store := NewSessionStore()
+		runner := newMockFFmpegRunner()
+		r := newTestRouter(store, runner)
+
+		body, _ := json.Marshal(map[string]interface{}{"bitrate_kbps": 2500})
+		req := httptest.NewRequest(http.MethodPost, "/bridge/sessions/unknown/stats", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected 404, got %d", w.Code)
+		}
+	})
+
+	t.Run("WebSocket未接続でもサイレントスキップして200", func(t *testing.T) {
+		store := NewSessionStore()
+		runner := newMockFFmpegRunner()
+		r := newTestRouter(store, runner)
+
+		store.Register("sess-no-ws", "rtmp://a.rtmp.youtube.com/live2/key")
+
+		body, _ := json.Marshal(map[string]interface{}{"bitrate_kbps": 2500})
+		req := httptest.NewRequest(http.MethodPost, "/bridge/sessions/sess-no-ws/stats", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("WebSocket接続中にwriteChanへ転送して200", func(t *testing.T) {
+		store := NewSessionStore()
+		runner := newMockFFmpegRunner()
+		r := newTestRouter(store, runner)
+
+		store.Register("sess-with-ws", "rtmp://a.rtmp.youtube.com/live2/key")
+		sess, _ := store.Get("sess-with-ws")
+		ch := make(chan []byte, 4)
+		sess.SetWriteChan(ch)
+
+		payload := map[string]interface{}{"bitrate_kbps": 3000, "viewer_count": 42}
+		body, _ := json.Marshal(payload)
+		req := httptest.NewRequest(http.MethodPost, "/bridge/sessions/sess-with-ws/stats", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		select {
+		case received := <-ch:
+			var got map[string]interface{}
+			if err := json.Unmarshal(received, &got); err != nil {
+				t.Fatalf("invalid JSON in writeChan: %v", err)
+			}
+			if got["bitrate_kbps"] != float64(3000) {
+				t.Errorf("expected bitrate_kbps=3000, got %v", got["bitrate_kbps"])
+			}
+		default:
+			t.Fatal("writeChan should have received stats data")
+		}
+	})
+
+	t.Run("不正なJSONボディ 400", func(t *testing.T) {
+		store := NewSessionStore()
+		runner := newMockFFmpegRunner()
+		r := newTestRouter(store, runner)
+
+		store.Register("sess-bad-json", "rtmp://a.rtmp.youtube.com/live2/key")
+
+		req := httptest.NewRequest(http.MethodPost, "/bridge/sessions/sess-bad-json/stats", bytes.NewReader([]byte("not-json")))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		r.ServeHTTP(w, req)

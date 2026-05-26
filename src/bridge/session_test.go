@@ -54,3 +54,49 @@ func TestSessionStore_Delete(t *testing.T) {
 		t.Fatalf("expected session to be deleted, got %v", err)
 	}
 }
+
+func TestSession_TrySendStats(t *testing.T) {
+	t.Run("writeChanが未設定の場合はfalseを返す", func(t *testing.T) {
+		sess := &Session{ID: "test"}
+		if sess.TrySendStats([]byte(`{"ok":true}`)) {
+			t.Error("expected false when no writeChan")
+		}
+	})
+
+	t.Run("writeChanにデータを送信してtrueを返す", func(t *testing.T) {
+		sess := &Session{ID: "test"}
+		ch := make(chan []byte, 1)
+		sess.SetWriteChan(ch)
+
+		data := []byte(`{"bitrate_kbps":2500}`)
+		if !sess.TrySendStats(data) {
+			t.Error("expected true when writeChan has capacity")
+		}
+		received := <-ch
+		if string(received) != string(data) {
+			t.Errorf("expected %s, got %s", data, received)
+		}
+	})
+
+	t.Run("チャネルが満杯の場合はブロックせずfalseを返す", func(t *testing.T) {
+		sess := &Session{ID: "test"}
+		ch := make(chan []byte, 1)
+		sess.SetWriteChan(ch)
+		ch <- []byte("already full")
+
+		if sess.TrySendStats([]byte("overflow")) {
+			t.Error("expected false when channel is full")
+		}
+	})
+
+	t.Run("SetWriteChan(nil)後はfalseを返す", func(t *testing.T) {
+		sess := &Session{ID: "test"}
+		ch := make(chan []byte, 1)
+		sess.SetWriteChan(ch)
+		sess.SetWriteChan(nil)
+
+		if sess.TrySendStats([]byte(`{"ok":true}`)) {
+			t.Error("expected false after writeChan set to nil")
+		}
+	})
+}
