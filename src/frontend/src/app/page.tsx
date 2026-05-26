@@ -101,7 +101,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [reconnectSessionId, reconnectAttempt]);
+  }, [reconnectSessionId, reconnectAttempt, mixerState]);
 
   const cameraStream = cameraState.status === 'capturing' ? cameraState.stream : null;
   const screenStream = screenState.status === 'capturing' ? screenState.stream : null;
@@ -196,7 +196,7 @@ export default function Home() {
           {isReconnecting && (
             <div className="flex items-center gap-2 rounded-md bg-orange-100 px-4 py-2 text-sm font-semibold text-orange-700">
               <span className="inline-block w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-              再接続中... ({streamState.phase === 'RECONNECTING' ? streamState.attempt : 0}/3)
+              再接続中... ({reconnectAttempt}/3)
             </div>
           )}
 

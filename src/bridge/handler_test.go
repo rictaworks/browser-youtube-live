@@ -39,12 +39,13 @@ func (m *mockFFmpegProcess) SimulateCrash() {
 }
 
 type mockFFmpegRunner struct {
-	buf        *bytes.Buffer
-	proc       *mockFFmpegProcess
-	startCount int
-	lastParams FFmpegParams
-	startErr   error
-	nextProcs  []*mockFFmpegProcess
+	buf         *bytes.Buffer
+	proc        *mockFFmpegProcess
+	startCount  int
+	lastParams  FFmpegParams
+	startErr    error
+	nextProcs   []*mockFFmpegProcess
+	startNotify chan struct{}
 }
 
 func newMockFFmpegRunner() *mockFFmpegRunner {
@@ -55,6 +56,12 @@ func newMockFFmpegRunner() *mockFFmpegRunner {
 func (m *mockFFmpegRunner) Start(params FFmpegParams) (FFmpegProcess, error) {
 	m.startCount++
 	m.lastParams = params
+	if m.startNotify != nil {
+		select {
+		case m.startNotify <- struct{}{}:
+		default:
+		}
+	}
 	if m.startErr != nil {
 		return nil, m.startErr
 	}
@@ -372,15 +379,16 @@ func TestMockFFmpegProcess_Done(t *testing.T) {
 }
 
 func TestHandleWebSocket_FFmpegCrash_AutoRestart(t *testing.T) {
-	store := NewSessionStore()
 	proc1 := newMockFFmpegProcess()
 	proc2 := newMockFFmpegProcess()
+	startNotify := make(chan struct{}, 2)
 	runner := &mockFFmpegRunner{
-		buf:       proc1.Buffer,
-		proc:      proc1,
-		nextProcs: []*mockFFmpegProcess{proc2},
+		buf:         proc1.Buffer,
+		proc:        proc1,
+		nextProcs:   []*mockFFmpegProcess{proc2},
+		startNotify: startNotify,
 	}
-
+	store := NewSessionStore()
 	ts := httptest.NewServer(newTestRouter(store, runner))
 	defer ts.Close()
 
@@ -389,20 +397,22 @@ func TestHandleWebSocket_FFmpegCrash_AutoRestart(t *testing.T) {
 	conn := dialTestWS(t, ts, "sess-crash")
 	defer conn.Close()
 
-	// 最初のフレームを送る
-	if err := conn.WriteMessage(websocket.BinaryMessage, []byte("frame1")); err != nil {
-		t.Fatalf("WriteMessage: %v", err)
+	// 初回FFmpeg起動を待機
+	select {
+	case <-startNotify:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("initial FFmpeg start timeout")
 	}
-	time.Sleep(20 * time.Millisecond)
 
-	// FFmpegクラッシュをシミュレート
+	// クラッシュをシミュレート → goroutineが即時検知して再起動
 	proc1.SimulateCrash()
 
-	// 次のフレームでクラッシュ検知 → 自動再起動
-	if err := conn.WriteMessage(websocket.BinaryMessage, []byte("frame2")); err != nil {
-		t.Fatalf("WriteMessage after crash: %v", err)
+	// 再起動完了を待機
+	select {
+	case <-startNotify:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("FFmpeg restart timeout")
 	}
-	time.Sleep(50 * time.Millisecond)
 
 	if runner.startCount != 2 {
 		t.Errorf("expected startCount=2 (initial + restart), got %d", runner.startCount)
@@ -413,18 +423,19 @@ func TestHandleWebSocket_FFmpegCrash_AutoRestart(t *testing.T) {
 }
 
 func TestHandleWebSocket_FFmpegCrash_MaxRestartsExceeded(t *testing.T) {
-	store := NewSessionStore()
 	proc0 := newMockFFmpegProcess()
 	nextProcs := make([]*mockFFmpegProcess, maxFFmpegRestarts)
 	for i := range nextProcs {
 		nextProcs[i] = newMockFFmpegProcess()
 	}
+	startNotify := make(chan struct{}, maxFFmpegRestarts+2)
 	runner := &mockFFmpegRunner{
-		buf:       proc0.Buffer,
-		proc:      proc0,
-		nextProcs: nextProcs,
+		buf:         proc0.Buffer,
+		proc:        proc0,
+		nextProcs:   nextProcs,
+		startNotify: startNotify,
 	}
-
+	store := NewSessionStore()
 	ts := httptest.NewServer(newTestRouter(store, runner))
 	defer ts.Close()
 
@@ -450,12 +461,15 @@ func TestHandleWebSocket_FFmpegCrash_MaxRestartsExceeded(t *testing.T) {
 		}
 	}()
 
-	// 全プロセスをクラッシュさせる
+	// 各プロセスの起動確認後にクラッシュさせる（ポーリング不要）
 	allProcs := append([]*mockFFmpegProcess{proc0}, nextProcs...)
-	for _, p := range allProcs {
+	for i, p := range allProcs {
+		select {
+		case <-startNotify:
+		case <-time.After(500 * time.Millisecond):
+			t.Fatalf("FFmpeg start %d timeout", i)
+		}
 		p.SimulateCrash()
-		conn.WriteMessage(websocket.BinaryMessage, []byte("frame"))
-		time.Sleep(20 * time.Millisecond)
 	}
 
 	select {
@@ -463,7 +477,7 @@ func TestHandleWebSocket_FFmpegCrash_MaxRestartsExceeded(t *testing.T) {
 		if errCode != "ffmpeg_max_restarts_exceeded" {
 			t.Errorf("expected ffmpeg_max_restarts_exceeded, got %s", errCode)
 		}
-	case <-time.After(500 * time.Millisecond):
-		t.Error("expected error message within 500ms")
+	case <-time.After(1000 * time.Millisecond):
+		t.Error("expected error message within 1s")
 	}
 }

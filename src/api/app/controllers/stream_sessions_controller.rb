@@ -75,7 +75,12 @@ class StreamSessionsController < ApplicationController
       title     = "Live #{Time.current.strftime('%Y-%m-%d %H:%M')} (再接続)"
       broadcast = youtube.create_broadcast(title: title)
       stream    = youtube.create_stream(title: title)
-      youtube.bind_broadcast_to_stream(broadcast_id: broadcast.id, stream_id: stream.id)
+      begin
+        youtube.bind_broadcast_to_stream(broadcast_id: broadcast.id, stream_id: stream.id)
+      rescue => e
+        Rails.logger.warn "[recover] bind_broadcast_to_stream failed, orphaned: broadcast=#{broadcast.id} stream=#{stream.id}: #{e.message}"
+        raise
+      end
 
       @stream_session.update!(
         broadcast_id: broadcast.id,
@@ -89,6 +94,10 @@ class StreamSessionsController < ApplicationController
   rescue YoutubeService::QuotaExceededError
     render json: { error: "YouTube API クォータが上限に達しました", code: "quota_exceeded" },
            status: :unprocessable_entity
+  rescue Google::Apis::Error => e
+    Rails.logger.error "[recover] YouTube API error: #{e.message}"
+    render json: { error: "YouTube API エラーが発生しました", code: "api_error" },
+           status: :service_unavailable
   end
 
   private
