@@ -65,6 +65,7 @@ go mod tidy
 - アイコン: **Font Awesome** のみ
 - 図解: **Mermaid**（`mmdc`）
 - TypeScript: `semi:true, singleQuote:true, trailingComma:"es5", printWidth:100, tabWidth:2` / `@/*` → `./src/*`
+- `.ts` / `.tsx` は Write/Edit 後に Prettier が自動実行される（`.claude/settings.json` PostToolUse hook）— 手動実行不要
 - Ruby: `rubocop-rails-omakase` 準拠
 
 # 環境変数
