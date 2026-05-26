@@ -51,7 +51,7 @@ class StreamSessionsController < ApplicationController
 
   def set_session
     @stream_session = @current_user.stream_sessions.find_by(id: params[:id])
-    render json: { error: "セッションが見つかりません" }, status: :not_found unless @stream_session
+    render json: { error: "セッションが見つかりません" }, status: :not_found and return unless @stream_session
   end
 
   def session_params

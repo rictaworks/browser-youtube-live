@@ -3,6 +3,7 @@ package main
 import (
 	"io"
 	"os/exec"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -26,9 +27,10 @@ func NewFFmpegRunner(path string) *RealFFmpegRunner {
 }
 
 type realFFmpegProcess struct {
-	stdin io.WriteCloser
-	cmd   *exec.Cmd
-	done  chan struct{}
+	stdin    io.WriteCloser
+	cmd      *exec.Cmd
+	done     chan struct{}
+	stopOnce sync.Once
 }
 
 func newRealFFmpegProcess(cmd *exec.Cmd, stdin io.WriteCloser) *realFFmpegProcess {
@@ -44,16 +46,18 @@ func (p *realFFmpegProcess) Write(b []byte) (int, error) { return p.stdin.Write(
 func (p *realFFmpegProcess) Close() error                { return p.stdin.Close() }
 
 func (p *realFFmpegProcess) Stop() {
-	p.stdin.Close()
-	if p.cmd.Process != nil {
-		p.cmd.Process.Signal(syscall.SIGTERM)
-		select {
-		case <-p.done:
-		case <-time.After(5 * time.Second):
-			p.cmd.Process.Kill()
-			<-p.done
+	p.stopOnce.Do(func() {
+		p.stdin.Close()
+		if p.cmd.Process != nil {
+			p.cmd.Process.Signal(syscall.SIGTERM)
+			select {
+			case <-p.done:
+			case <-time.After(5 * time.Second):
+				p.cmd.Process.Kill()
+				<-p.done
+			}
 		}
-	}
+	})
 }
 
 func (r *RealFFmpegRunner) Start(rtmpURL string) (FFmpegProcess, error) {

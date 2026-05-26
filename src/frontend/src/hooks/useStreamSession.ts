@@ -94,11 +94,15 @@ export async function stopStream(
   }
 
   if (sessionId) {
-    try {
-      await Promise.allSettled([endStreamSession(sessionId), terminateBridgeSession(sessionId)]);
-    } catch {
-      // 終了処理のエラーは無視して COMPLETED へ遷移する
-    }
+    const results = await Promise.allSettled([
+      endStreamSession(sessionId),
+      terminateBridgeSession(sessionId),
+    ]);
+    results.forEach((r) => {
+      if (r.status === 'rejected') {
+        console.error('[stopStream] teardown error:', r.reason);
+      }
+    });
   }
 
   const next: StreamSessionState = { phase: 'COMPLETED' };
