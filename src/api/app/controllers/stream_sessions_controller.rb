@@ -1,6 +1,6 @@
 class StreamSessionsController < ApplicationController
   before_action :authenticate!
-  before_action :set_session, only: [:end, :stats]
+  before_action :set_session, only: [ :end, :stats ]
 
   def create
     youtube  = YoutubeService.new(@current_user)

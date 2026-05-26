@@ -3,10 +3,10 @@ module Auth
     skip_before_action :verify_authenticity_token, raise: false
 
     def google_oauth2
-      auth = request.env['omniauth.auth']
+      auth = request.env["omniauth.auth"]
 
       unless auth
-        render json: { error: 'OAuth 認証情報が取得できませんでした' }, status: :unauthorized
+        render json: { error: "OAuth 認証情報が取得できませんでした" }, status: :unauthorized
         return
       end
 
@@ -24,7 +24,7 @@ module Auth
       redirect_to "#{frontend_origin}/", allow_other_host: true
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.error("OAuth ユーザー保存失敗: #{e.message}")
-      render json: { error: 'ユーザー情報の保存に失敗しました' }, status: :unprocessable_entity
+      render json: { error: "ユーザー情報の保存に失敗しました" }, status: :unprocessable_entity
     end
 
     private

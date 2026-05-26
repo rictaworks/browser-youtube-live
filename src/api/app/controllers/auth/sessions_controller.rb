@@ -1,6 +1,6 @@
 module Auth
   class SessionsController < ApplicationController
-    before_action :authenticate!, only: [:me]
+    before_action :authenticate!, only: [ :me ]
 
     def me
       render json: {

@@ -51,5 +51,5 @@ Rails.application.configure do
 
   # OmniAuth はセッションを要求するため、API-only テスト環境でセッションミドルウェアを追加する
   config.middleware.use ActionDispatch::Cookies
-  config.middleware.use ActionDispatch::Session::CookieStore, key: '_test_session'
+  config.middleware.use ActionDispatch::Session::CookieStore, key: "_test_session"
 end
