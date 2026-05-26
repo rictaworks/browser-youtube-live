@@ -6,47 +6,93 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 // モック FFmpegRunner / FFmpegProcess
 type mockFFmpegProcess struct {
 	*bytes.Buffer
 	stopped bool
+	doneCh  chan struct{}
+}
+
+func newMockFFmpegProcess() *mockFFmpegProcess {
+	return &mockFFmpegProcess{Buffer: &bytes.Buffer{}, doneCh: make(chan struct{})}
 }
 
 func (m *mockFFmpegProcess) Close() error { return nil }
 func (m *mockFFmpegProcess) Stop()        { m.stopped = true }
+func (m *mockFFmpegProcess) Done() <-chan struct{} { return m.doneCh }
+
+// SimulateCrash は FFmpeg プロセスのクラッシュをシミュレートする。
+func (m *mockFFmpegProcess) SimulateCrash() {
+	select {
+	case <-m.doneCh:
+	default:
+		close(m.doneCh)
+	}
+}
 
 type mockFFmpegRunner struct {
 	buf        *bytes.Buffer
 	proc       *mockFFmpegProcess
 	startCount int
 	lastParams FFmpegParams
+	startErr   error
+	nextProcs  []*mockFFmpegProcess
 }
 
 func newMockFFmpegRunner() *mockFFmpegRunner {
-	buf := &bytes.Buffer{}
-	return &mockFFmpegRunner{buf: buf, proc: &mockFFmpegProcess{Buffer: buf}}
+	proc := newMockFFmpegProcess()
+	return &mockFFmpegRunner{buf: proc.Buffer, proc: proc}
 }
 
 func (m *mockFFmpegRunner) Start(params FFmpegParams) (FFmpegProcess, error) {
 	m.startCount++
 	m.lastParams = params
-	return m.proc, nil
+	if m.startErr != nil {
+		return nil, m.startErr
+	}
+	if m.startCount == 1 {
+		return m.proc, nil
+	}
+	idx := m.startCount - 2
+	if idx < len(m.nextProcs) {
+		return m.nextProcs[idx], nil
+	}
+	return newMockFFmpegProcess(), nil
 }
 
 func newTestRouter(store *SessionStore, runner FFmpegRunner) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	h := &Handler{store: store, runner: runner}
+	h := &Handler{
+		store:  store,
+		runner: runner,
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(_ *http.Request) bool { return true },
+		},
+	}
 	r.POST("/bridge/sessions", h.RegisterSession)
 	r.DELETE("/bridge/sessions/:id", h.StopSession)
 	r.POST("/bridge/sessions/:id/stats", h.PushStats)
 	r.GET("/ws", h.HandleWebSocket)
 	return r
+}
+
+func dialTestWS(t *testing.T, ts *httptest.Server, sessionID string) *websocket.Conn {
+	t.Helper()
+	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws?session_id=" + sessionID
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("WebSocket dial failed: %v", err)
+	}
+	return conn
 }
 
 func TestRegisterSession(t *testing.T) {
@@ -296,4 +342,128 @@ func TestStopSession(t *testing.T) {
 			t.Fatal("stopFunc should have been called")
 		}
 	})
+}
+
+func TestMockFFmpegProcess_Done(t *testing.T) {
+	t.Run("初期状態ではdoneチャネルはオープン", func(t *testing.T) {
+		proc := newMockFFmpegProcess()
+		select {
+		case <-proc.Done():
+			t.Error("done channel should be open initially")
+		default:
+		}
+	})
+
+	t.Run("SimulateCrash後はdoneチャネルがクローズ", func(t *testing.T) {
+		proc := newMockFFmpegProcess()
+		proc.SimulateCrash()
+		select {
+		case <-proc.Done():
+		default:
+			t.Error("done channel should be closed after SimulateCrash")
+		}
+	})
+
+	t.Run("SimulateCrashは複数回呼んでもパニックしない", func(t *testing.T) {
+		proc := newMockFFmpegProcess()
+		proc.SimulateCrash()
+		proc.SimulateCrash() // 2回目はno-op
+	})
+}
+
+func TestHandleWebSocket_FFmpegCrash_AutoRestart(t *testing.T) {
+	store := NewSessionStore()
+	proc1 := newMockFFmpegProcess()
+	proc2 := newMockFFmpegProcess()
+	runner := &mockFFmpegRunner{
+		buf:       proc1.Buffer,
+		proc:      proc1,
+		nextProcs: []*mockFFmpegProcess{proc2},
+	}
+
+	ts := httptest.NewServer(newTestRouter(store, runner))
+	defer ts.Close()
+
+	store.Register("sess-crash", "rtmp://a.rtmp.youtube.com/live2/key")
+
+	conn := dialTestWS(t, ts, "sess-crash")
+	defer conn.Close()
+
+	// 最初のフレームを送る
+	if err := conn.WriteMessage(websocket.BinaryMessage, []byte("frame1")); err != nil {
+		t.Fatalf("WriteMessage: %v", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+
+	// FFmpegクラッシュをシミュレート
+	proc1.SimulateCrash()
+
+	// 次のフレームでクラッシュ検知 → 自動再起動
+	if err := conn.WriteMessage(websocket.BinaryMessage, []byte("frame2")); err != nil {
+		t.Fatalf("WriteMessage after crash: %v", err)
+	}
+	time.Sleep(50 * time.Millisecond)
+
+	if runner.startCount != 2 {
+		t.Errorf("expected startCount=2 (initial + restart), got %d", runner.startCount)
+	}
+	if !proc1.stopped {
+		t.Error("proc1 should be stopped after crash restart")
+	}
+}
+
+func TestHandleWebSocket_FFmpegCrash_MaxRestartsExceeded(t *testing.T) {
+	store := NewSessionStore()
+	proc0 := newMockFFmpegProcess()
+	nextProcs := make([]*mockFFmpegProcess, maxFFmpegRestarts)
+	for i := range nextProcs {
+		nextProcs[i] = newMockFFmpegProcess()
+	}
+	runner := &mockFFmpegRunner{
+		buf:       proc0.Buffer,
+		proc:      proc0,
+		nextProcs: nextProcs,
+	}
+
+	ts := httptest.NewServer(newTestRouter(store, runner))
+	defer ts.Close()
+
+	store.Register("sess-maxcrash", "rtmp://a.rtmp.youtube.com/live2/key")
+
+	conn := dialTestWS(t, ts, "sess-maxcrash")
+
+	// エラーメッセージ受信チャネル
+	errReceived := make(chan string, 1)
+	go func() {
+		for {
+			_, msg, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+			var payload map[string]string
+			if json.Unmarshal(msg, &payload) == nil {
+				if code, ok := payload["error"]; ok {
+					errReceived <- code
+					return
+				}
+			}
+		}
+	}()
+
+	// 全プロセスをクラッシュさせる
+	allProcs := append([]*mockFFmpegProcess{proc0}, nextProcs...)
+	for _, p := range allProcs {
+		p.SimulateCrash()
+		conn.WriteMessage(websocket.BinaryMessage, []byte("frame"))
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	select {
+	case errCode := <-errReceived:
+		if errCode != "ffmpeg_max_restarts_exceeded" {
+			t.Errorf("expected ffmpeg_max_restarts_exceeded, got %s", errCode)
+		}
+	case <-time.After(500 * time.Millisecond):
+		t.Error("expected error message within 500ms")
+	}
 }

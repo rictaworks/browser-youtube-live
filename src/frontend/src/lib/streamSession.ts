@@ -72,3 +72,24 @@ export async function terminateBridgeSession(sessionId: string): Promise<void> {
     throw new StreamApiError(data.error ?? 'ブリッジ終了に失敗しました');
   }
 }
+
+export type RecoverSessionResponse = {
+  recovered: boolean;
+  session_id: string;
+  rtmp_url: string;
+  broadcast_id: string;
+  new_broadcast: boolean;
+};
+
+export async function recoverStreamSession(sessionId: string): Promise<RecoverSessionResponse> {
+  const res = await fetch(`${config.apiBaseUrl}/stream_sessions/${sessionId}/recover`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    throw new StreamApiError(data.error ?? 'セッション回復に失敗しました', data.code);
+  }
+  return data as RecoverSessionResponse;
+}

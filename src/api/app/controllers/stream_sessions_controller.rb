@@ -1,6 +1,8 @@
 class StreamSessionsController < ApplicationController
   before_action :authenticate!
-  before_action :set_session, only: [ :end, :stats ]
+  before_action :set_session, only: [ :end, :stats, :recover ]
+
+  VALID_BROADCAST_STATUSES = %w[created ready testStarting liveStarting live].freeze
 
   def create
     youtube  = YoutubeService.new(@current_user)
@@ -63,6 +65,32 @@ class StreamSessionsController < ApplicationController
     render json: stats_json(stat, @stream_session)
   end
 
+  def recover
+    youtube = YoutubeService.new(@current_user)
+    status  = youtube.broadcast_status(broadcast_id: @stream_session.broadcast_id)
+
+    if VALID_BROADCAST_STATUSES.include?(status)
+      render json: recover_json(@stream_session, new_broadcast: false)
+    else
+      title     = "Live #{Time.current.strftime('%Y-%m-%d %H:%M')} (再接続)"
+      broadcast = youtube.create_broadcast(title: title)
+      stream    = youtube.create_stream(title: title)
+      youtube.bind_broadcast_to_stream(broadcast_id: broadcast.id, stream_id: stream.id)
+
+      @stream_session.update!(
+        broadcast_id: broadcast.id,
+        stream_key:   stream.cdn.ingestion_info.stream_name,
+        rtmp_url:     stream.cdn.ingestion_info.ingestion_address,
+        status:       "created"
+      )
+
+      render json: recover_json(@stream_session, new_broadcast: true)
+    end
+  rescue YoutubeService::QuotaExceededError
+    render json: { error: "YouTube API クォータが上限に達しました", code: "quota_exceeded" },
+           status: :unprocessable_entity
+  end
+
   private
 
   def set_session
@@ -97,6 +125,16 @@ class StreamSessionsController < ApplicationController
       viewer_count:    stat.viewer_count,
       buffer_size_kb:  stat.buffer_size_kb,
       elapsed_seconds: elapsed
+    }
+  end
+
+  def recover_json(session, new_broadcast:)
+    {
+      recovered:     true,
+      session_id:    session.id,
+      rtmp_url:      session.rtmp_url,
+      broadcast_id:  session.broadcast_id,
+      new_broadcast: new_broadcast
     }
   end
 end

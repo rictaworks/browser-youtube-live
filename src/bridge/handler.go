@@ -12,6 +12,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const maxFFmpegRestarts = 3
+
 type Handler struct {
 	store    *SessionStore
 	runner   FFmpegRunner
@@ -117,6 +119,8 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 
 	log.Printf("WebSocket connected for session %s → %s", sessionID, sess.RTMPURL)
 
+	crashRestarts := 0
+
 	for {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {
@@ -130,11 +134,33 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 				if restartErr == nil {
 					proc.Stop()
 					proc = newProc
+					crashRestarts = 0 // 品質変更再起動でクラッシュカウンタをリセット
 					log.Printf("[adaptive] session %s FFmpeg restarted: bitrate=%dkbps resolution=%s",
 						sessionID, params.BitrateKbps, params.Resolution)
 				} else {
 					log.Printf("[adaptive] FFmpeg restart error (session %s): %v", sessionID, restartErr)
 				}
+			}
+
+			// FFmpegクラッシュ検知（doneチャネルがクローズ済みかチェック）
+			select {
+			case <-proc.Done():
+				if crashRestarts >= maxFFmpegRestarts {
+					log.Printf("[recover] session %s FFmpeg max restarts (%d) exceeded", sessionID, maxFFmpegRestarts)
+					conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"ffmpeg_max_restarts_exceeded"}`))
+					return
+				}
+				newProc, restartErr := h.runner.Start(FFmpegParams{RTMPURL: sess.RTMPURL, BitrateKbps: sess.CurrentBitrate()})
+				if restartErr != nil {
+					log.Printf("[recover] session %s FFmpeg restart failed: %v", sessionID, restartErr)
+					conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"ffmpeg_restart_failed"}`))
+					return
+				}
+				proc.Stop()
+				proc = newProc
+				crashRestarts++
+				log.Printf("[recover] session %s FFmpeg auto-restarted (attempt %d/%d)", sessionID, crashRestarts, maxFFmpegRestarts)
+			default:
 			}
 
 			if _, err := proc.Write(data); err != nil {

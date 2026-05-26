@@ -8,14 +8,20 @@ import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useUserMedia } from '@/hooks/useUserMedia';
 import { useDisplayMedia } from '@/hooks/useDisplayMedia';
 import { useCanvasMixer } from '@/hooks/useCanvasMixer';
-import { startStream, stopStream, StreamSessionState, IDLE } from '@/hooks/useStreamSession';
+import {
+  startStream,
+  stopStream,
+  recoverAndReconnectStream,
+  StreamSessionState,
+  IDLE,
+} from '@/hooks/useStreamSession';
 import { useStreamStats } from '@/hooks/useStreamStats';
 import { useQualityChange } from '@/hooks/useQualityChange';
 import { StreamDashboard } from '@/components/StreamDashboard';
 import { useQualityPresets } from '@/hooks/useQualityPresets';
 import { config } from '@/lib/env';
 import type { Quality } from '@/lib/captureUserMedia';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faVideo,
@@ -73,6 +79,30 @@ export default function Home() {
   const streamStats = useStreamStats(streamingWs);
   const qualityChange = useQualityChange(streamingWs);
 
+  const reconnectSessionId = streamState.phase === 'RECONNECTING' ? streamState.sessionId : null;
+  const reconnectAttempt = streamState.phase === 'RECONNECTING' ? streamState.attempt : 0;
+
+  useEffect(() => {
+    if (!reconnectSessionId) return;
+    const stream = mixerState.status === 'mixing' ? mixerState.mixedStream : null;
+    if (!stream) {
+      setStreamState({ phase: 'ERROR', error: '映像ストリームが失われました' });
+      return;
+    }
+    let cancelled = false;
+    recoverAndReconnectStream(stream, reconnectSessionId, reconnectAttempt, (state) => {
+      if (!cancelled) setStreamState(state);
+    }).then((next) => {
+      if (!cancelled && next.phase === 'STREAMING') {
+        wsRef.current = next.ws;
+        recorderRef.current = next.recorder;
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [reconnectSessionId, reconnectAttempt]);
+
   const cameraStream = cameraState.status === 'capturing' ? cameraState.stream : null;
   const screenStream = screenState.status === 'capturing' ? screenState.stream : null;
   const mixedStream = mixerState.status === 'mixing' ? mixerState.mixedStream : null;
@@ -81,8 +111,12 @@ export default function Home() {
   const isStreaming = streamState.phase === 'STREAMING';
   const isEnding = streamState.phase === 'ENDING';
   const isCompleted = streamState.phase === 'COMPLETED';
+  const isReconnecting = streamState.phase === 'RECONNECTING';
   const isStreamBusy =
-    streamState.phase === 'CREATING' || streamState.phase === 'CONNECTING' || isEnding;
+    streamState.phase === 'CREATING' ||
+    streamState.phase === 'CONNECTING' ||
+    isEnding ||
+    isReconnecting;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
@@ -156,6 +190,13 @@ export default function Home() {
                 配信中
               </div>
               <StreamDashboard stats={streamStats} qualityChange={qualityChange} />
+            </div>
+          )}
+
+          {isReconnecting && (
+            <div className="flex items-center gap-2 rounded-md bg-orange-100 px-4 py-2 text-sm font-semibold text-orange-700">
+              <span className="inline-block w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+              再接続中... ({streamState.phase === 'RECONNECTING' ? streamState.attempt : 0}/3)
             </div>
           )}
 

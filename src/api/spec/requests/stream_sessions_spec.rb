@@ -270,3 +270,154 @@ RSpec.describe "GET /stream_sessions/:id/stats", type: :request do
     end
   end
 end
+
+RSpec.describe "POST /stream_sessions/:id/recover", type: :request do
+  include FactoryBot::Syntax::Methods
+
+  let(:user) { create(:user) }
+  let(:jwt_token) { JwtService.encode(user_id: user.id) }
+
+  def auth_headers
+    { "Cookie" => "jwt_token=#{jwt_token}" }
+  end
+
+  let(:session) { create(:stream_session, user: user, status: "live", broadcast_id: "bcast_abc") }
+
+  let(:mock_broadcast_valid) do
+    Google::Apis::YoutubeV3::LiveBroadcast.new(
+      id: "bcast_abc",
+      status: Google::Apis::YoutubeV3::LiveBroadcastStatus.new(life_cycle_status: "live")
+    )
+  end
+
+  let(:mock_broadcast_invalid) do
+    Google::Apis::YoutubeV3::LiveBroadcast.new(
+      id: "bcast_abc",
+      status: Google::Apis::YoutubeV3::LiveBroadcastStatus.new(life_cycle_status: "complete")
+    )
+  end
+
+  let(:mock_broadcast_new) do
+    Google::Apis::YoutubeV3::LiveBroadcast.new(
+      id: "bcast_new_999",
+      snippet: Google::Apis::YoutubeV3::LiveBroadcastSnippet.new(title: "再接続"),
+      status: Google::Apis::YoutubeV3::LiveBroadcastStatus.new(life_cycle_status: "created")
+    )
+  end
+
+  let(:mock_stream_new) do
+    Google::Apis::YoutubeV3::LiveStream.new(
+      id: "stream_new_456",
+      cdn: Google::Apis::YoutubeV3::CdnSettings.new(
+        ingestion_info: Google::Apis::YoutubeV3::IngestionInfo.new(
+          stream_name: "key-new-abc",
+          ingestion_address: "rtmp://a.rtmp.youtube.com/live2"
+        )
+      )
+    )
+  end
+
+  context "有効なブロードキャストが存在する場合" do
+    before do
+      allow_any_instance_of(YoutubeService).to receive(:broadcast_status)
+        .with(broadcast_id: "bcast_abc")
+        .and_return("live")
+    end
+
+    it "200 を返して recovered=true と既存セッション情報を返す" do
+      post "/stream_sessions/#{session.id}/recover", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json["recovered"]).to be true
+      expect(json["session_id"]).to eq(session.id)
+      expect(json["rtmp_url"]).to eq(session.rtmp_url)
+      expect(json["new_broadcast"]).to be false
+    end
+  end
+
+  context "ブロードキャストが無効な場合（complete）" do
+    before do
+      allow_any_instance_of(YoutubeService).to receive(:broadcast_status)
+        .with(broadcast_id: "bcast_abc")
+        .and_return("complete")
+      allow_any_instance_of(YoutubeService).to receive(:create_broadcast).and_return(mock_broadcast_new)
+      allow_any_instance_of(YoutubeService).to receive(:create_stream).and_return(mock_stream_new)
+      allow_any_instance_of(YoutubeService).to receive(:bind_broadcast_to_stream).and_return(mock_broadcast_new)
+    end
+
+    it "200 を返して recovered=true と new_broadcast=true を返す" do
+      post "/stream_sessions/#{session.id}/recover", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json["recovered"]).to be true
+      expect(json["new_broadcast"]).to be true
+      expect(json["broadcast_id"]).to eq("bcast_new_999")
+    end
+
+    it "セッションのbroadcast_idとrtmp_urlが更新される" do
+      post "/stream_sessions/#{session.id}/recover", headers: auth_headers
+
+      session.reload
+      expect(session.broadcast_id).to eq("bcast_new_999")
+      expect(session.rtmp_url).to eq("rtmp://a.rtmp.youtube.com/live2")
+    end
+  end
+
+  context "createdステータスも有効なブロードキャストとして扱う" do
+    before do
+      allow_any_instance_of(YoutubeService).to receive(:broadcast_status)
+        .and_return("created")
+    end
+
+    it "200 を返して new_broadcast=false" do
+      post "/stream_sessions/#{session.id}/recover", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json["new_broadcast"]).to be false
+    end
+  end
+
+  context "存在しないセッション" do
+    it "404 を返す" do
+      post "/stream_sessions/#{SecureRandom.uuid}/recover", headers: auth_headers
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  context "他人のセッション" do
+    let(:other_user) { create(:user) }
+    let(:other_session) { create(:stream_session, user: other_user, status: "live") }
+
+    it "404 を返す" do
+      post "/stream_sessions/#{other_session.id}/recover", headers: auth_headers
+      expect(response).to have_http_status(:not_found)
+    end
+  end
+
+  context "未認証" do
+    it "401 を返す" do
+      post "/stream_sessions/#{session.id}/recover"
+      expect(response).to have_http_status(:unauthorized)
+    end
+  end
+
+  context "YouTube APIクォータ超過" do
+    before do
+      allow_any_instance_of(YoutubeService).to receive(:broadcast_status)
+        .and_return("complete")
+      allow_any_instance_of(YoutubeService).to receive(:create_broadcast)
+        .and_raise(YoutubeService::QuotaExceededError)
+    end
+
+    it "422 と quota_exceeded コードを返す" do
+      post "/stream_sessions/#{session.id}/recover", headers: auth_headers
+
+      expect(response).to have_http_status(:unprocessable_entity)
+      json = JSON.parse(response.body)
+      expect(json["code"]).to eq("quota_exceeded")
+    end
+  end
+end
