@@ -52,4 +52,27 @@ describe('StreamHistoryTable', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
   });
+
+  test('recording_url が javascript: スキームの場合リンクを表示しない', () => {
+    render(
+      <StreamHistoryTable
+        sessions={[{ ...item, recording_url: 'javascript:alert(1)' as unknown as string }]}
+      />
+    );
+    expect(screen.queryByRole('link', { name: /録画/ })).toBeNull();
+  });
+
+  test('recording_url が http:// の場合リンクを表示しない（https のみ許可）', () => {
+    render(<StreamHistoryTable sessions={[{ ...item, recording_url: 'http://example.com/v' }]} />);
+    expect(screen.queryByRole('link', { name: /録画/ })).toBeNull();
+  });
+
+  test('started_at が不正な日付の場合 ハイフン表示', () => {
+    render(
+      <StreamHistoryTable
+        sessions={[{ ...item, started_at: 'not-a-date', created_at: 'also-bad' }]}
+      />
+    );
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
 });

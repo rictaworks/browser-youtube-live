@@ -15,12 +15,17 @@ function formatDuration(sec: number | null): string {
 function formatDateTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
   const hh = String(d.getHours()).padStart(2, '0');
   const mi = String(d.getMinutes()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function isSafeRecordingUrl(url: string | null): url is string {
+  return typeof url === 'string' && /^https:\/\//i.test(url);
 }
 
 export function StreamHistoryTable({ sessions }: Props) {
@@ -58,7 +63,7 @@ export function StreamHistoryTable({ sessions }: Props) {
               <td className="px-3 py-2">{s.quality}</td>
               <td className="px-3 py-2">{s.status}</td>
               <td className="px-3 py-2">
-                {s.recording_url ? (
+                {isSafeRecordingUrl(s.recording_url) ? (
                   <a
                     href={s.recording_url}
                     target="_blank"

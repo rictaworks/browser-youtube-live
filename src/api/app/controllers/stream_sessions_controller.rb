@@ -10,11 +10,11 @@ class StreamSessionsController < ApplicationController
   def index
     retention_days = ENV.fetch("STREAM_HISTORY_RETENTION_DAYS", DEFAULT_RETENTION_DAYS).to_i
     page           = [ params[:page].to_i, 1 ].max
-    per_page       = (params[:per_page].presence || DEFAULT_PER_PAGE).to_i.clamp(1, MAX_PER_PAGE)
+    per_page       = (params[:per_page] || DEFAULT_PER_PAGE).to_i.clamp(1, MAX_PER_PAGE)
 
     scope = @current_user.stream_sessions
                          .within_retention(retention_days)
-                         .order(created_at: :desc)
+                         .order(created_at: :desc, id: :desc)
     total_count = scope.count
 
     sessions = scope.limit(per_page).offset((page - 1) * per_page).to_a

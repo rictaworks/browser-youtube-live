@@ -440,6 +440,19 @@ RSpec.describe "GET /stream_sessions", type: :request do
     end
   end
 
+  context "セッション 0 件の認証済みユーザー" do
+    it "空配列とページネーション情報を返す" do
+      get "/stream_sessions", headers: auth_headers
+
+      expect(response).to have_http_status(:ok)
+      json = JSON.parse(response.body)
+      expect(json["sessions"]).to eq([])
+      expect(json["total_count"]).to eq(0)
+      expect(json["total_pages"]).to eq(0)
+      expect(json["page"]).to eq(1)
+    end
+  end
+
   context "認証済みユーザー" do
     let!(:my_session_recent) do
       create(:stream_session, user: user, status: "ended",

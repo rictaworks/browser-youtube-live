@@ -11,9 +11,9 @@
   end
 end
 
-# 配信履歴サンプル（デモ版5件）— demo_streamer1 が存在する場合のみ投入
+# 配信履歴サンプル（デモ版5件）— demo_streamer1 が存在し未投入の場合のみ
 demo_user = User.find_by(email: "demo_streamer1@example.com")
-if demo_user && demo_user.stream_sessions.count < 5
+if demo_user && !demo_user.stream_sessions.exists?(broadcast_id: "demo_broadcast_1")
   samples = [
     { started_offset_hours: 6,   duration_min: 30, status: "ended", quality: "720p", max_viewers: 42 },
     { started_offset_hours: 28,  duration_min: 15, status: "ended", quality: "720p", max_viewers: 18 },
