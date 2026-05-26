@@ -7,32 +7,59 @@
 ## 開発環境のセットアップ
 
 ```bash
-# 依存関係インストール
-npm install
-
-# 環境変数の設定
+# 1. 環境変数設定
 cp .env.example .env
 # .env を編集して各値を設定
 
-# 開発サーバー起動
-npm run dev
+# 2. Rails API（src/api/ 内）
+bundle install
+bundle exec rails db:prepare
+bundle exec rails server -p 4000
+
+# 3. フロントエンド（src/frontend/ 内）
+npm install
+npm run dev   # ポート 3000
+
+# 4. Go ブリッジ（src/bridge/ 内）
+go build && ./bridge   # ポート 8080
 ```
 
 ---
 
 ## ページ一覧
 
-| ページ名 | URL |
-|---|---|
-| （実装後に追記） | - |
+| ページ名 | URL | 説明 |
+|---|---|---|
+| ホーム（配信管理） | `/` | ログイン・カメラ/画面プレビュー・配信開始/停止・統計表示 |
+| 配信履歴 | `/history` | 過去の配信一覧（ページネーション対応） |
 
 ---
 
 ## API 一覧
 
-| タイトル | エンドポイント URL |
-|---|---|
-| （実装後に追記） | - |
+### Rails API（ポート 4000）
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/auth/google/callback` | Google OAuth2 認証コールバック |
+| GET | `/auth/me` | ログイン中ユーザー情報取得 |
+| DELETE | `/auth/sign_out` | ログアウト |
+| GET | `/quality_presets` | 利用可能な配信品質プリセット一覧 |
+| GET | `/stream_sessions` | 配信履歴一覧（`?page=1&per_page=20`） |
+| POST | `/stream_sessions` | 配信セッション作成（YouTube Broadcast 作成） |
+| PATCH | `/stream_sessions/:id/end` | 配信終了 |
+| GET | `/stream_sessions/:id/stats` | 配信統計情報取得 |
+| POST | `/stream_sessions/:id/recover` | セッション回復（切断時の再接続） |
+
+### Go ブリッジ（ポート 8080）
+
+| メソッド | エンドポイント | 説明 |
+|---|---|---|
+| GET | `/health` | ヘルスチェック（FFmpeg 動作確認） |
+| GET | `/ws` | WebSocket 接続（映像バイナリ受信） |
+| POST | `/bridge/sessions` | ブリッジセッション登録 |
+| DELETE | `/bridge/sessions/:id` | ブリッジセッション終了 |
+| POST | `/bridge/sessions/:id/stats` | 配信統計プッシュ |
 
 ---
 

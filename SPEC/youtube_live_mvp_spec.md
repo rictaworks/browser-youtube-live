@@ -88,19 +88,19 @@
 
 ### 3.1 機能一覧
 
-| 機能ID | 機能名 | 優先度 | 説明 |
-|--------|--------|--------|------|
-| F01 | Google認証ログイン | Must | OAuth2でYouTubeアカウント連携 |
-| F02 | カメラ映像取得 | Must | getUserMediaでカメラ・マイク取得 |
-| F03 | 画面共有取得 | Should | getDisplayMediaで画面キャプチャ |
-| F04 | カメラ+画面合成 | Should | Canvas APIで2ソース合成 |
-| F05 | 配信開始 | Must | YouTube Broadcast作成→RTMP配信開始 |
-| F06 | 配信停止 | Must | 安全なセッション終了・リソース解放 |
-| F07 | 配信品質選択 | Should | 1080p/720p/480p切り替え |
-| F08 | ステータス監視 | Must | ビットレート・視聴者数・配信時間表示 |
-| F09 | アダプティブ品質制御 | Should | ネット状況に応じて自動品質調整 |
-| F10 | セッション回復 | Should | 切断時の自動再接続 |
-| F11 | 配信履歴 | Could | 過去の配信一覧表示 |
+| 機能ID | 機能名 | 優先度 | 説明 | 実装状況 |
+|--------|--------|--------|------|---------|
+| F01 | Google認証ログイン | Must | OAuth2でYouTubeアカウント連携 | 実装済み |
+| F02 | カメラ映像取得 | Must | getUserMediaでカメラ・マイク取得 | 実装済み |
+| F03 | 画面共有取得 | Should | getDisplayMediaで画面キャプチャ | 実装済み |
+| F04 | カメラ+画面合成 | Should | Canvas APIで2ソース合成 | 実装済み |
+| F05 | 配信開始 | Must | YouTube Broadcast作成→RTMP配信開始 | 実装済み |
+| F06 | 配信停止 | Must | 安全なセッション終了・リソース解放 | 実装済み |
+| F07 | 配信品質選択 | Should | 1080p/720p/480p切り替え | 実装済み |
+| F08 | ステータス監視 | Must | ビットレート・視聴者数・配信時間表示 | 実装済み |
+| F09 | アダプティブ品質制御 | Should | ネット状況に応じて自動品質調整 | 実装済み |
+| F10 | セッション回復 | Should | 切断時の自動再接続 | 実装済み |
+| F11 | 配信履歴 | Could | 過去の配信一覧表示 | 実装済み |
 
 ### 3.2 関数仕様（確定版）
 
@@ -218,8 +218,6 @@
                               │   (360p/480p/720p/1080p)│  │
                               │ started_at     TIMESTAMP│  │
                               │ ended_at       TIMESTAMP│  │
-                              │ duration_sec   INTEGER  │  │
-                              │ max_viewers    INTEGER  │  │
                               │ error_message  TEXT     │  │
                               │ created_at     TIMESTAMP│  │
                               └─────────────────────────┘  │
@@ -247,6 +245,7 @@
 │ fps      INTEGER    │
 │ bitrate  INTEGER    │  (kbps)
 │ codec    VARCHAR    │
+│ enabled  BOOLEAN    │  デモ版では720pのみ true
 └─────────────────────┘
 ```
 
@@ -599,7 +598,7 @@
 - **sidekiq** - バックグラウンドジョブ（ステータス監視）
 
 ### RTMPブリッジ (Render / Railway)
-- **Go 1.22 + Gin** - WebSocketハンドリング・高速並列処理
+- **Go 1.26 + Gin** - WebSocketハンドリング・高速並列処理
 - **gorilla/websocket** - WebSocket実装
 - **FFmpeg** - WebRTC→RTMP変換
 - **os/exec** - FFmpegプロセス管理
