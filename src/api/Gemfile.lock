@@ -107,6 +107,10 @@ GEM
       devise (>= 4.0.0, < 6.0.0)
       warden-jwt_auth (~> 0.10)
     diff-lcs (1.6.2)
+    dotenv (3.2.0)
+    dotenv-rails (3.2.0)
+      dotenv (= 3.2.0)
+      railties (>= 6.1)
     drb (2.2.3)
     dry-auto_inject (1.2.0)
       dry-core (~> 1.1)
@@ -153,6 +157,8 @@ GEM
       google-apis-core (>= 0.15.0, < 2.a)
       google-apis-discovery_v1 (~> 0.18)
       thor (>= 0.20, < 2.a)
+    google-apis-youtube_v3 (0.64.0)
+      google-apis-core (>= 0.15.0, < 2.a)
     google-cloud-env (2.3.1)
       base64 (~> 0.2)
       faraday (>= 1.0, < 3.a)
@@ -455,8 +461,11 @@ DEPENDENCIES
   debug
   devise
   devise-jwt
+  dotenv-rails
   factory_bot_rails
   google-api-client
+  google-apis-youtube_v3
+  googleauth
   omniauth
   omniauth-google-oauth2
   omniauth-rails_csrf_protection
