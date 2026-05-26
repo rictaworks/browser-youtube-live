@@ -44,6 +44,20 @@ func (h *Handler) RegisterSession(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"session_id": req.SessionID})
 }
 
+func (h *Handler) StopSession(c *gin.Context) {
+	id := c.Param("id")
+	sess, err := h.store.Get(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "session not found"})
+		return
+	}
+
+	sess.Stop()
+	h.store.Delete(id)
+
+	c.JSON(http.StatusOK, gin.H{"session_id": id})
+}
+
 func (h *Handler) HandleWebSocket(c *gin.Context) {
 	sessionID := c.Query("session_id")
 	if sessionID == "" {
@@ -64,14 +78,23 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 	}
 	defer conn.Close()
 
-	stdin, err := h.runner.Start(sess.RTMPURL)
+	proc, err := h.runner.Start(sess.RTMPURL)
 	if err != nil {
 		log.Printf("FFmpeg start error: %v", err)
 		conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"ffmpeg start failed"}`))
 		return
 	}
-	defer stdin.Close()
+	defer proc.Stop()
 	defer h.store.Delete(sessionID)
+
+	sess.SetStopFunc(func() {
+		conn.WriteMessage(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, "配信停止"),
+		)
+		conn.Close()
+		proc.Stop()
+	})
 
 	log.Printf("WebSocket connected for session %s → %s", sessionID, sess.RTMPURL)
 
@@ -82,7 +105,7 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 			break
 		}
 		if msgType == websocket.BinaryMessage {
-			if _, err := stdin.Write(data); err != nil {
+			if _, err := proc.Write(data); err != nil {
 				log.Printf("FFmpeg write error (session %s): %v", sessionID, err)
 				break
 			}

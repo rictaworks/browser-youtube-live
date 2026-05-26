@@ -6,6 +6,10 @@ const mockCreate = api.createStreamSession as jest.MockedFunction<typeof api.cre
 const mockRegister = api.registerBridgeSession as jest.MockedFunction<
   typeof api.registerBridgeSession
 >;
+const mockEnd = api.endStreamSession as jest.MockedFunction<typeof api.endStreamSession>;
+const mockTerminate = api.terminateBridgeSession as jest.MockedFunction<
+  typeof api.terminateBridgeSession
+>;
 
 const mockApiResponse = {
   id: 'session-uuid-1',
@@ -109,10 +113,65 @@ describe('startStream', () => {
 });
 
 describe('stopStream', () => {
-  test('IDLE 状態を返す', () => {
+  test('ENDING → COMPLETED の順で状態が遷移する', async () => {
+    mockEnd.mockResolvedValue({ ...mockApiResponse, status: 'ended' });
+    mockTerminate.mockResolvedValue(undefined);
+
     const ws = new MockWebSocket('ws://test') as unknown as WebSocket;
     const recorder = { ...mockRecorder, state: 'recording' as RecordingState };
-    const result = stopStream(ws, recorder as unknown as MediaRecorder);
-    expect(result.phase).toBe('IDLE');
+    const states: string[] = [];
+    const onStateChange = (s: StreamSessionState) => states.push(s.phase);
+
+    const result = await stopStream(
+      ws,
+      recorder as unknown as MediaRecorder,
+      'session-uuid-1',
+      onStateChange
+    );
+
+    expect(states).toContain('ENDING');
+    expect(result.phase).toBe('COMPLETED');
+  });
+
+  test('endStreamSession と terminateBridgeSession が呼ばれる', async () => {
+    mockEnd.mockResolvedValue({ ...mockApiResponse, status: 'ended' });
+    mockTerminate.mockResolvedValue(undefined);
+
+    await stopStream(null, null, 'session-uuid-1', () => {});
+
+    expect(mockEnd).toHaveBeenCalledWith('session-uuid-1');
+    expect(mockTerminate).toHaveBeenCalledWith('session-uuid-1');
+  });
+
+  test('sessionId が null のとき API を呼ばない', async () => {
+    const result = await stopStream(null, null, null, () => {});
+
+    expect(mockEnd).not.toHaveBeenCalled();
+    expect(mockTerminate).not.toHaveBeenCalled();
+    expect(result.phase).toBe('COMPLETED');
+  });
+
+  test('recorder.stop() と ws.close() が呼ばれる', async () => {
+    mockEnd.mockResolvedValue({ ...mockApiResponse, status: 'ended' });
+    mockTerminate.mockResolvedValue(undefined);
+
+    const ws = new MockWebSocket('ws://test') as unknown as WebSocket;
+    const recorder = {
+      stop: jest.fn(),
+      state: 'recording' as RecordingState,
+    } as unknown as MediaRecorder;
+
+    await stopStream(ws, recorder, 'sess-1', () => {});
+
+    expect(recorder.stop).toHaveBeenCalled();
+    expect(ws.close).toHaveBeenCalled();
+  });
+
+  test('endStreamSession 失敗時も COMPLETED に遷移する', async () => {
+    mockEnd.mockRejectedValue(new Error('already ended'));
+    mockTerminate.mockResolvedValue(undefined);
+
+    const result = await stopStream(null, null, 'sess-1', () => {});
+    expect(result.phase).toBe('COMPLETED');
   });
 });

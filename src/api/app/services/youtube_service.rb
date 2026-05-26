@@ -49,6 +49,12 @@ class YoutubeService
     handle_client_error(e)
   end
 
+  def end_broadcast(broadcast_id:)
+    @client.transition_live_broadcast("complete", broadcast_id, BROADCAST_PARTS)
+  rescue Google::Apis::ClientError => e
+    handle_client_error(e)
+  end
+
   private
 
   def build_client

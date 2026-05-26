@@ -1,4 +1,9 @@
-import { createStreamSession, registerBridgeSession } from '@/lib/streamSession';
+import {
+  createStreamSession,
+  registerBridgeSession,
+  endStreamSession,
+  terminateBridgeSession,
+} from '@/lib/streamSession';
 import { config } from '@/lib/env';
 
 export type StreamSessionState =
@@ -6,6 +11,8 @@ export type StreamSessionState =
   | { phase: 'CREATING' }
   | { phase: 'CONNECTING' }
   | { phase: 'STREAMING'; ws: WebSocket; recorder: MediaRecorder; sessionId: string }
+  | { phase: 'ENDING' }
+  | { phase: 'COMPLETED' }
   | { phase: 'ERROR'; error: string };
 
 export const IDLE: StreamSessionState = { phase: 'IDLE' };
@@ -71,15 +78,34 @@ export async function startStream(
   });
 }
 
-export function stopStream(
+export async function stopStream(
   ws: WebSocket | null,
-  recorder: MediaRecorder | null
-): StreamSessionState {
+  recorder: MediaRecorder | null,
+  sessionId: string | null,
+  onStateChange: (state: StreamSessionState) => void
+): Promise<StreamSessionState> {
+  onStateChange({ phase: 'ENDING' });
+
   if (recorder && recorder.state !== 'inactive') {
     recorder.stop();
   }
   if (ws) {
     ws.close();
   }
-  return IDLE;
+
+  if (sessionId) {
+    const results = await Promise.allSettled([
+      endStreamSession(sessionId),
+      terminateBridgeSession(sessionId),
+    ]);
+    results.forEach((r) => {
+      if (r.status === 'rejected') {
+        console.error('[stopStream] teardown error:', r.reason);
+      }
+    });
+  }
+
+  const next: StreamSessionState = { phase: 'COMPLETED' };
+  onStateChange(next);
+  return next;
 }

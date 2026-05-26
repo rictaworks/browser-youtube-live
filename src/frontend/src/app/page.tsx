@@ -11,7 +11,7 @@ import { useCanvasMixer } from '@/hooks/useCanvasMixer';
 import { startStream, stopStream, StreamSessionState, IDLE } from '@/hooks/useStreamSession';
 import { config } from '@/lib/env';
 import type { Quality } from '@/lib/captureUserMedia';
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faVideo,
@@ -55,12 +55,14 @@ export default function Home() {
     }
   };
 
-  const handleStopStream = () => {
-    const next = stopStream(wsRef.current, recorderRef.current);
+  const handleStopStream = useCallback(async () => {
+    const sessionId = streamState.phase === 'STREAMING' ? streamState.sessionId : null;
+    const ws = wsRef.current;
+    const recorder = recorderRef.current;
     wsRef.current = null;
     recorderRef.current = null;
-    setStreamState(next);
-  };
+    await stopStream(ws, recorder, sessionId, setStreamState);
+  }, [streamState]);
 
   const cameraStream = cameraState.status === 'capturing' ? cameraState.stream : null;
   const screenStream = screenState.status === 'capturing' ? screenState.stream : null;
@@ -68,7 +70,10 @@ export default function Home() {
   const canMix = cameraState.status === 'capturing' && screenState.status === 'capturing';
   const canStream = mixerState.status === 'mixing' && streamState.phase === 'IDLE';
   const isStreaming = streamState.phase === 'STREAMING';
-  const isStreamBusy = streamState.phase === 'CREATING' || streamState.phase === 'CONNECTING';
+  const isEnding = streamState.phase === 'ENDING';
+  const isCompleted = streamState.phase === 'COMPLETED';
+  const isStreamBusy =
+    streamState.phase === 'CREATING' || streamState.phase === 'CONNECTING' || isEnding;
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
@@ -133,6 +138,19 @@ export default function Home() {
             <div className="flex items-center gap-2 rounded-md bg-red-100 px-4 py-2 text-sm font-semibold text-red-700">
               <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               配信中
+            </div>
+          )}
+
+          {isEnding && (
+            <div className="flex items-center gap-2 rounded-md bg-yellow-100 px-4 py-2 text-sm font-semibold text-yellow-700">
+              <span className="inline-block w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+              配信終了中...
+            </div>
+          )}
+
+          {isCompleted && (
+            <div className="flex items-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-600">
+              配信が終了しました
             </div>
           )}
 
@@ -214,13 +232,21 @@ export default function Home() {
               </button>
             )}
 
-            {isStreaming ? (
+            {isStreaming || isEnding ? (
               <button
                 onClick={handleStopStream}
-                className="flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors"
+                disabled={isEnding}
+                className="flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 transition-colors disabled:opacity-50"
               >
                 <FontAwesomeIcon icon={faStop} />
-                配信停止
+                {isEnding ? '終了中...' : '配信停止'}
+              </button>
+            ) : isCompleted ? (
+              <button
+                onClick={() => setStreamState(IDLE)}
+                className="flex items-center gap-2 rounded-md bg-gray-500 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600 transition-colors"
+              >
+                リセット
               </button>
             ) : (
               <button

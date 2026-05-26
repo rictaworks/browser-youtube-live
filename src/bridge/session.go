@@ -11,6 +11,23 @@ var ErrSessionExists = errors.New("session already exists")
 type Session struct {
 	ID      string
 	RTMPURL string
+	mu       sync.Mutex
+	stopFunc func()
+}
+
+func (s *Session) SetStopFunc(f func()) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stopFunc = f
+}
+
+func (s *Session) Stop() {
+	s.mu.Lock()
+	f := s.stopFunc
+	s.mu.Unlock()
+	if f != nil {
+		f()
+	}
 }
 
 type SessionStore struct {
