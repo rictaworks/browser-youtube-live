@@ -106,6 +106,23 @@ go mod tidy
 | `agents/` | サブエージェント定義（9 ファイル） |
 | `.claude/` | Claude Code 権限設定 |
 
+## ドキュメント管理ルール
+
+**機能実装・PR マージ後に必ず更新すること（Writer エージェントが担当）:**
+
+- `SPEC/` — 実装内容を反映してリバースエンジニアリング成果物（ER図・DFD・シーケンス図・クラス図・状態遷移図・ユースケース図）を更新する。図解は Mermaid（`mmdc`）で作成する
+- `README.md` — ページ一覧・API 一覧・セットアップ手順を実態に合わせて更新する
+
+**随時更新するもの:**
+
+- `TASKS/` — 着手・完了のたびにタスクステータスを更新する
+- `WORK/` — 作業完了後に作業報告を作成する
+- `DEBUG/` — バグ発見時に報告ファイルを作成し、修正後にクローズする
+- `CLIENT/` — クライアント要望受領時に記録する
+- `ENV/DEVELOPMENT.md` — 開発環境の設定・手順が変わったら更新する
+- `ENV/PRODUCTION.md` — 本番環境の設定・手順が変わったら更新する
+- `DELETE/` — 削除対象ファイルはここに移動する（直接削除禁止）
+
 # 参照
 
 `claude-settings/`: CC.md · CRAP.md · OWASP10.md · QC10.md · TM.md · development-principles.md · auto-optimizer.md
