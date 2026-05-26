@@ -13,6 +13,7 @@ import (
 type FFmpegProcess interface {
 	io.WriteCloser
 	Stop()
+	Done() <-chan struct{}
 }
 
 // FFmpegParams は FFmpeg 起動パラメータを保持する。
@@ -51,6 +52,7 @@ func newRealFFmpegProcess(cmd *exec.Cmd, stdin io.WriteCloser) *realFFmpegProces
 
 func (p *realFFmpegProcess) Write(b []byte) (int, error) { return p.stdin.Write(b) }
 func (p *realFFmpegProcess) Close() error                { return p.stdin.Close() }
+func (p *realFFmpegProcess) Done() <-chan struct{}        { return p.done }
 
 func (p *realFFmpegProcess) Stop() {
 	p.stopOnce.Do(func() {

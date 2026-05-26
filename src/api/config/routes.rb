@@ -15,6 +15,7 @@ Rails.application.routes.draw do
     member do
       patch :end
       get   :stats
+      post  :recover
     end
   end
 end

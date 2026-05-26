@@ -12,10 +12,18 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+const maxFFmpegRestarts = 3
+
 type Handler struct {
 	store    *SessionStore
 	runner   FFmpegRunner
 	upgrader websocket.Upgrader
+}
+
+type wsMsg struct {
+	msgType int
+	data    []byte
+	err     error
 }
 
 type registerRequest struct {
@@ -117,29 +125,85 @@ func (h *Handler) HandleWebSocket(c *gin.Context) {
 
 	log.Printf("WebSocket connected for session %s → %s", sessionID, sess.RTMPURL)
 
-	for {
-		msgType, data, err := conn.ReadMessage()
-		if err != nil {
-			log.Printf("WebSocket read error (session %s): %v", sessionID, err)
-			break
-		}
-		if msgType == websocket.BinaryMessage {
-			// 品質変更シグナルがあればFFmpegを再起動する（非ブロッキング）
-			if params, ok := sess.RecvRestart(); ok {
-				newProc, restartErr := h.runner.Start(FFmpegParams{RTMPURL: sess.RTMPURL, BitrateKbps: params.BitrateKbps})
-				if restartErr == nil {
-					proc.Stop()
-					proc = newProc
-					log.Printf("[adaptive] session %s FFmpeg restarted: bitrate=%dkbps resolution=%s",
-						sessionID, params.BitrateKbps, params.Resolution)
-				} else {
-					log.Printf("[adaptive] FFmpeg restart error (session %s): %v", sessionID, restartErr)
-				}
+	// readCh でWSメッセージを非同期受信し、crashChのselectをブロックしない。
+	readCh := make(chan wsMsg, 32)
+	go func() {
+		for {
+			msgType, data, err := conn.ReadMessage()
+			readCh <- wsMsg{msgType, data, err}
+			if err != nil {
+				return
 			}
+		}
+	}()
 
-			if _, err := proc.Write(data); err != nil {
-				log.Printf("FFmpeg write error (session %s): %v", sessionID, err)
-				break
+	// crashCh はクラッシュしたプロセスのgenerationを送信する。
+	// generationを使い、古いプロセスの終了シグナルを無視する。
+	crashCh := make(chan int, 1)
+	generation := 0
+	crashRestarts := 0
+
+	monitorCrash := func(gen int, p FFmpegProcess) {
+		go func() {
+			<-p.Done()
+			select {
+			case crashCh <- gen:
+			default:
+			}
+		}()
+	}
+	monitorCrash(generation, proc)
+
+	for {
+		select {
+		case gen := <-crashCh:
+			if gen != generation {
+				continue
+			}
+			if crashRestarts >= maxFFmpegRestarts {
+				log.Printf("[recover] session %s FFmpeg max restarts (%d) exceeded", sessionID, maxFFmpegRestarts)
+				conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"ffmpeg_max_restarts_exceeded"}`))
+				return
+			}
+			newProc, restartErr := h.runner.Start(FFmpegParams{RTMPURL: sess.RTMPURL, BitrateKbps: sess.CurrentBitrate()})
+			if restartErr != nil {
+				log.Printf("[recover] session %s FFmpeg restart failed: %v", sessionID, restartErr)
+				conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"ffmpeg_restart_failed"}`))
+				return
+			}
+			proc.Stop()
+			proc = newProc
+			crashRestarts++
+			generation++
+			log.Printf("[recover] session %s FFmpeg auto-restarted (attempt %d/%d)", sessionID, crashRestarts, maxFFmpegRestarts)
+			monitorCrash(generation, proc)
+
+		case msg := <-readCh:
+			if msg.err != nil {
+				log.Printf("WebSocket read error (session %s): %v", sessionID, msg.err)
+				return
+			}
+			if msg.msgType == websocket.BinaryMessage {
+				// 品質変更シグナルがあればFFmpegを再起動する（非ブロッキング）
+				if params, ok := sess.RecvRestart(); ok {
+					newProc, restartErr := h.runner.Start(FFmpegParams{RTMPURL: sess.RTMPURL, BitrateKbps: params.BitrateKbps})
+					if restartErr == nil {
+						proc.Stop()
+						proc = newProc
+						crashRestarts = 0 // 品質変更再起動でクラッシュカウンタをリセット
+						generation++
+						log.Printf("[adaptive] session %s FFmpeg restarted: bitrate=%dkbps resolution=%s",
+							sessionID, params.BitrateKbps, params.Resolution)
+						monitorCrash(generation, proc)
+					} else {
+						log.Printf("[adaptive] FFmpeg restart error (session %s): %v", sessionID, restartErr)
+					}
+				}
+
+				if _, err := proc.Write(msg.data); err != nil {
+					log.Printf("FFmpeg write error (session %s): %v", sessionID, err)
+					return
+				}
 			}
 		}
 	}
