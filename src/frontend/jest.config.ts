@@ -12,6 +12,7 @@ const config: Config = {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json' }],
   },
   setupFilesAfterEnv: ['@testing-library/jest-dom'],
+  modulePaths: ['<rootDir>/node_modules'],
 };
 
 export default config;
