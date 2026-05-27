@@ -110,7 +110,7 @@ class BridgeSetupTest < Minitest::Test
   # --- ヘルスチェック疎通確認 ---
 
   def test_health_endpoint_returns_ok
-    pid = spawn("cd #{BRIDGE_ROOT} && PORT=18080 FFMPEG_PATH=/usr/bin/ffmpeg ./bridge",
+    pid = spawn("cd #{BRIDGE_ROOT} && PORT=18080 FFMPEG_PATH=/usr/bin/ffmpeg FRONTEND_ORIGIN=http://localhost:3000 ./bridge",
                 out: '/dev/null', err: '/dev/null')
     sleep 1.5
 

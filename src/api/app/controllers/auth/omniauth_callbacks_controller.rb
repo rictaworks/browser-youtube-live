@@ -16,8 +16,8 @@ module Auth
       cookies[JWT_COOKIE_NAME] = {
         value:     token,
         httponly:  true,
-        secure:    Rails.env.production?,
-        same_site: :lax,
+        secure:    !Rails.env.development?,
+        same_site: :none,
         expires:   JWT_COOKIE_TTL.seconds.from_now
       }
 
