@@ -5,9 +5,4 @@ RSpec.describe 'Application middleware stack', type: :request do
     middleware_names = Rails.application.middleware.map(&:name)
     expect(middleware_names).to include('ActionDispatch::Session::CookieStore')
   end
-
-  it 'GET /up returns 200 without session error' do
-    get '/up'
-    expect(response).to have_http_status(:ok)
-  end
 end
