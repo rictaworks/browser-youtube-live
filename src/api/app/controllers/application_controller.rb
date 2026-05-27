@@ -4,7 +4,27 @@ class ApplicationController < ActionController::API
   JWT_COOKIE_NAME = "jwt_token"
   JWT_COOKIE_TTL  = 24 * 60 * 60
 
+  before_action :verify_csrf_origin!, if: -> { request.post? || request.patch? || request.put? || request.delete? }
+
   private
+
+  # SameSite=None cookie を使うため、CORS preflight を回避できる simple request による
+  # CSRF を防止する。Origin ヘッダーが存在する場合のみ検証し、サーバー間リクエストは通過させる。
+  def verify_csrf_origin!
+    origin = request.headers["Origin"]
+    return unless origin
+
+    allowed =
+      if Rails.env.production?
+        ENV.fetch("FRONTEND_ORIGIN") { raise "FRONTEND_ORIGIN が設定されていません" }
+      else
+        ENV.fetch("FRONTEND_ORIGIN", "http://localhost:3000")
+      end
+
+    unless origin == allowed
+      render json: { error: "リクエスト元が許可されていません" }, status: :forbidden
+    end
+  end
 
   def authenticate!
     token = cookies[JWT_COOKIE_NAME]
