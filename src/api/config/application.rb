@@ -41,6 +41,10 @@ module Api
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
 
+    # OmniAuth 2.x requires session middleware (stripped in API-only mode)
+    config.middleware.use ActionDispatch::Cookies
+    config.middleware.use ActionDispatch::Session::CookieStore, key: '_api_session', same_site: :lax, httponly: true
+
     config.active_record.schema_format = :sql
   end
 end
