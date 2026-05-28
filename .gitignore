@@ -83,3 +83,8 @@ logs/
 .nyc_output/
 playwright-report/
 test-results/
+
+# ツール・エージェント
+.agents/
+.antigravitycli/
+AGENTS.md

@@ -111,10 +111,10 @@ go build && ./bridge   # ポート 8080
 | フェーズ | 担当モデル |
 |---|---|
 | 設計・Issue 発行 | Claude Sonnet |
-| 実装 | Claude Sonnet |
+| 1次実装 | Antigravity 3.5Flash |
 | コードレビュー | Claude Sonnet |
 | テスト作成・実行 | Claude Sonnet |
-| セキュリティレビュー | Claude Opus |
+| セキュリティレビュー | Codex GPT5.5 |
 
 ### リリースフロー
 
